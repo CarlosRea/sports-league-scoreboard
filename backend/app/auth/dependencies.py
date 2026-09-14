@@ -1,20 +1,20 @@
-from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from app.auth.security import decode_access_token
 from app.models.auth import User, UserRole
-from app.store.memory_store import store
+from app.store import store
 
 # Optional HTTPBearer so endpoints that allow both Cookie and Header don't fail immediately
 security_bearer = HTTPBearer(auto_error=False)
 
+
 async def get_current_user(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer)
+    request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(security_bearer)
 ) -> User:
     """Extract and validate user from Bearer header or session_id cookie."""
-    token: Optional[str] = None
-    
+    token: str | None = None
+
     if credentials:
         token = credentials.credentials
     elif "session_id" in request.cookies:
@@ -53,20 +53,22 @@ async def get_current_user(
 
     return user
 
+
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     """Ensure current user has the Admin role."""
     if user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrator permissions are required for this action."
+            detail="Administrator permissions are required for this action.",
         )
     return user
+
 
 async def require_scorekeeper_or_admin(user: User = Depends(get_current_user)) -> User:
     """Ensure current user has either Scorekeeper or Admin role."""
     if user.role not in (UserRole.ADMIN, UserRole.SCOREKEEPER):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Scorekeeper or Administrator permissions are required for this action."
+            detail="Scorekeeper or Administrator permissions are required for this action.",
         )
     return user

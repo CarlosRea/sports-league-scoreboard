@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException, status, Response, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from app.models.auth import Token, LoginRequest, UserOut, User
-from app.auth.security import verify_password, create_access_token
+
 from app.auth.dependencies import get_current_user
-from app.store.memory_store import store
+from app.auth.security import create_access_token, verify_password
+from app.models.auth import LoginRequest, Token, User, UserOut
+from app.store import store
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
 
 @router.post("/login", response_model=Token)
 async def login_json(payload: LoginRequest, response: Response):
@@ -26,15 +28,13 @@ async def login_json(payload: LoginRequest, response: Response):
         value=access_token,
         httponly=True,
         samesite="lax",
-        secure=False, # Set to True in HTTPS production
+        secure=False,  # Set to True in HTTPS production
     )
 
     return Token(
-        access_token=access_token,
-        token_type="bearer",
-        role=user.role,
-        username=user.username
+        access_token=access_token, token_type="bearer", role=user.role, username=user.username
     )
+
 
 @router.post("/token", response_model=Token)
 async def login_form(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -49,17 +49,11 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends()):
 
     access_token = create_access_token(data={"sub": user.username, "role": user.role.value})
     return Token(
-        access_token=access_token,
-        token_type="bearer",
-        role=user.role,
-        username=user.username
+        access_token=access_token, token_type="bearer", role=user.role, username=user.username
     )
+
 
 @router.get("/me", response_model=UserOut)
 async def get_me(user: User = Depends(get_current_user)):
     """Retrieve details of the currently authenticated user."""
-    return UserOut(
-        username=user.username,
-        role=user.role,
-        is_active=user.is_active
-    )
+    return UserOut(username=user.username, role=user.role, is_active=user.is_active)

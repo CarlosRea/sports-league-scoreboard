@@ -1,17 +1,19 @@
-from typing import List, Dict, Any, Optional
 from datetime import datetime
-from app.models.team import Team
+from typing import Any
+
 from app.models.match import Match, MatchStatus
-from app.models.standings import TeamStanding, MatchResultChar
+from app.models.standings import MatchResultChar, TeamStanding
+from app.models.team import Team
+
 
 def calculate_standings(
-    teams: List[Team],
-    matches: List[Match],
+    teams: list[Team],
+    matches: list[Match],
     points_win: int = 3,
     points_draw: int = 1,
     points_loss: int = 0,
-    include_in_progress: bool = False
-) -> List[TeamStanding]:
+    include_in_progress: bool = False,
+) -> list[TeamStanding]:
     """
     Pure standings calculation engine conforming strictly to docs/spec.md:
     - 3 points Win, 1 point Draw, 0 points Loss (configurable)
@@ -19,7 +21,7 @@ def calculate_standings(
     - Form guide: Last 5 completed matches (newest first)
     """
     # 1. Initialize stats for each team
-    stats: Dict[str, Dict[str, Any]] = {}
+    stats: dict[str, dict[str, Any]] = {}
     for team in teams:
         stats[team.id] = {
             "team": team,
@@ -30,13 +32,15 @@ def calculate_standings(
             "goals_for": 0,
             "goals_against": 0,
             "points": 0,
-            "form_chronological": []
+            "form_chronological": [],
         }
 
     # 2. Filter relevant matches
-    relevant_matches: List[Match] = []
+    relevant_matches: list[Match] = []
     for m in matches:
-        if m.status == MatchStatus.FINISHED or (include_in_progress and m.status == MatchStatus.IN_PROGRESS):
+        if m.status == MatchStatus.FINISHED or (
+            include_in_progress and m.status == MatchStatus.IN_PROGRESS
+        ):
             relevant_matches.append(m)
 
     # Sort matches chronologically to produce accurate form guide
@@ -103,28 +107,30 @@ def calculate_standings(
         return diff
 
     # 4. Build standing records
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for team_id, data in stats.items():
         team_obj: Team = data["team"]
         gd = data["goals_for"] - data["goals_against"]
         # Last 5 matches, newest first
         form = list(reversed(data["form_chronological"][-5:]))
 
-        rows.append({
-            "team_id": team_id,
-            "team_name": team_obj.name,
-            "short_name": team_obj.shortName,
-            "logo_color": team_obj.logoColor,
-            "played": data["played"],
-            "won": data["won"],
-            "drawn": data["drawn"],
-            "lost": data["lost"],
-            "goals_for": data["goals_for"],
-            "goals_against": data["goals_against"],
-            "goal_difference": gd,
-            "points": data["points"],
-            "form": form,
-        })
+        rows.append(
+            {
+                "team_id": team_id,
+                "team_name": team_obj.name,
+                "short_name": team_obj.shortName,
+                "logo_color": team_obj.logoColor,
+                "played": data["played"],
+                "won": data["won"],
+                "drawn": data["drawn"],
+                "lost": data["lost"],
+                "goals_for": data["goals_for"],
+                "goals_against": data["goals_against"],
+                "goal_difference": gd,
+                "points": data["points"],
+                "form": form,
+            }
+        )
 
     # 5. Sort by tie-breaking hierarchy:
     # 1. Points (descending)
@@ -132,7 +138,7 @@ def calculate_standings(
     # 3. Goals For (descending)
     # 4. Head-to-Head points
     # 5. Team Name (alphabetical ascending)
-    def compare_rows(a: Dict[str, Any], b: Dict[str, Any]) -> int:
+    def compare_rows(a: dict[str, Any], b: dict[str, Any]) -> int:
         if b["points"] != a["points"]:
             return b["points"] - a["points"]
         if b["goal_difference"] != a["goal_difference"]:
@@ -145,10 +151,11 @@ def calculate_standings(
         return -1 if a["team_name"].lower() < b["team_name"].lower() else 1
 
     import functools
+
     sorted_rows = sorted(rows, key=functools.cmp_to_key(compare_rows))
 
     # 6. Assign final 1-based ranks
-    standings: List[TeamStanding] = []
+    standings: list[TeamStanding] = []
     for rank, r in enumerate(sorted_rows, start=1):
         standings.append(
             TeamStanding(
@@ -165,7 +172,7 @@ def calculate_standings(
                 goalsAgainst=r["goals_against"],
                 goalDifference=r["goal_difference"],
                 points=r["points"],
-                form=r["form"]
+                form=r["form"],
             )
         )
 

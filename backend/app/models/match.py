@@ -1,6 +1,7 @@
 from enum import Enum
-from typing import List, Optional
+
 from pydantic import BaseModel, Field
+
 
 class MatchStatus(str, Enum):
     SCHEDULED = "SCHEDULED"
@@ -8,12 +9,14 @@ class MatchStatus(str, Enum):
     FINISHED = "FINISHED"
     CANCELLED = "CANCELLED"
 
+
 class MatchPeriod(str, Enum):
     NOT_STARTED = "Not Started"
     FIRST_HALF = "1st Half"
     HALF_TIME = "Half Time"
     SECOND_HALF = "2nd Half"
     FULL_TIME = "Full Time"
+
 
 class MatchEventType(str, Enum):
     GOAL_HOME = "GOAL_HOME"
@@ -23,6 +26,7 @@ class MatchEventType(str, Enum):
     MATCH_STARTED = "MATCH_STARTED"
     MATCH_FINISHED = "MATCH_FINISHED"
 
+
 class MatchEvent(BaseModel):
     id: str = Field(..., examples=["ev-1"])
     matchId: str = Field(..., examples=["match-301"])
@@ -30,8 +34,9 @@ class MatchEvent(BaseModel):
     minute: int = Field(default=0, ge=0, examples=[18])
     homeScoreAfter: int = Field(default=0, ge=0, examples=[1])
     awayScoreAfter: int = Field(default=0, ge=0, examples=[0])
-    note: Optional[str] = Field(default=None, examples=["Goal scored by Riverside FC"])
+    note: str | None = Field(default=None, examples=["Goal scored by Riverside FC"])
     recordedAt: str
+
 
 class Match(BaseModel):
     id: str = Field(..., examples=["match-301"])
@@ -44,23 +49,25 @@ class Match(BaseModel):
     homeScore: int = Field(default=0, ge=0, examples=[2])
     awayScore: int = Field(default=0, ge=0, examples=[1])
     currentPeriod: MatchPeriod = Field(default=MatchPeriod.NOT_STARTED)
-    elapsedMinutes: Optional[int] = Field(default=None, ge=0, examples=[68])
-    startedAt: Optional[str] = None
-    finishedAt: Optional[str] = None
+    elapsedMinutes: int | None = Field(default=None, ge=0, examples=[68])
+    startedAt: str | None = None
+    finishedAt: str | None = None
     createdAt: str
     updatedAt: str
-    events: List[MatchEvent] = Field(default_factory=list)
+    events: list[MatchEvent] = Field(default_factory=list)
+
 
 class CreateMatchDto(BaseModel):
-    leagueId: Optional[str] = None
+    leagueId: str | None = None
     homeTeamId: str = Field(..., examples=["team-riverside"])
     awayTeamId: str = Field(..., examples=["team-apex"])
     matchday: int = Field(default=1, ge=1, examples=[3])
     scheduledAt: str = Field(..., examples=["2026-09-18T18:30:00.000Z"])
 
+
 class UpdateScoreDto(BaseModel):
     homeScore: int = Field(..., ge=0, examples=[2])
     awayScore: int = Field(..., ge=0, examples=[1])
-    period: Optional[MatchPeriod] = None
-    minute: Optional[int] = Field(default=None, ge=0, le=130, examples=[72])
-    note: Optional[str] = Field(default=None, max_length=200, examples=["Goal scored by Riverside FC"])
+    period: MatchPeriod | None = None
+    minute: int | None = Field(default=None, ge=0, le=130, examples=[72])
+    note: str | None = Field(default=None, max_length=200, examples=["Goal scored by Riverside FC"])

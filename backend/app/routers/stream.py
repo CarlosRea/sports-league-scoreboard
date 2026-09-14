@@ -1,9 +1,12 @@
 import asyncio
+
 from fastapi import APIRouter
 from starlette.responses import StreamingResponse
-from app.store.memory_store import store
+
+from app.store import store
 
 router = APIRouter(tags=["Realtime"])
+
 
 @router.get("/stream")
 async def event_stream():
@@ -17,7 +20,7 @@ async def event_stream():
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=15.0)
                     yield f"data: {event.model_dump_json()}\n\n"
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield ": ping\n\n"
         except asyncio.CancelledError:
             pass
@@ -31,5 +34,5 @@ async def event_stream():
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )

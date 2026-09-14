@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends
-from app.models.auth import User
+
 from app.auth.dependencies import require_admin
-from app.store.memory_store import store
+from app.models.auth import User
+from app.store import store
 
 router = APIRouter(prefix="/dev", tags=["Dev"])
+
 
 @router.post("/reset")
 async def reset_demo_data(admin: User = Depends(require_admin)):

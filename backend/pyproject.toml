@@ -1,7 +1,7 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI backend for Sports League Scoreboard application"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.13.5",
     "pyjwt>=2.14.0",
     "python-multipart>=0.0.32",
+    "sqlalchemy>=2.0.53",
     "uvicorn>=0.53.0",
 ]
 
@@ -18,9 +19,17 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.7",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
 
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+ignore = ["E501", "UP007", "UP042"]
