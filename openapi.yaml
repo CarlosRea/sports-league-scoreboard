@@ -1,0 +1,976 @@
+openapi: 3.0.3
+info:
+  title: Sports League Scoreboard API
+  description: >
+    Backend API specification for the Sports League Scoreboard application.
+    Supports amateur sports league management, match scheduling, pitchside live scoring,
+    match finalization, and automated standings calculation (3-1-0 points system).
+  version: 1.0.0
+  contact:
+    name: League Platform Engineering
+
+servers:
+  - url: http://127.0.0.1:8000/api
+    description: Local development backend
+  - url: /api
+    description: Relative API path (same-origin / reverse proxy)
+
+tags:
+  - name: Leagues
+    description: League creation, configuration, and retrieval
+  - name: Teams
+    description: Club and team registration within leagues
+  - name: Matches
+    description: Match scheduling, filtering, and detail views
+  - name: Scorekeeper
+    description: Pitchside live scoring, period controls, and match finalization
+  - name: Standings
+    description: Dynamically computed league tables and tie-breakers
+  - name: Realtime
+    description: Real-time event streaming via Server-Sent Events (SSE)
+  - name: Dev
+    description: Development and demo utility endpoints
+
+paths:
+  # ============================================================================
+  # LEAGUES
+  # ============================================================================
+  /leagues:
+    get:
+      tags:
+        - Leagues
+      summary: List all leagues
+      description: Returns a list of all configured leagues and tournaments. Publicly accessible.
+      operationId: getLeagues
+      security: []
+      responses:
+        '200':
+          description: Successful retrieval of leagues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/League'
+
+    post:
+      tags:
+        - Leagues
+      summary: Create a new league
+      description: Configures a new league with season details and points rules (default 3-1-0). Requires Admin role.
+      operationId: createLeague
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeagueDto'
+      responses:
+        '201':
+          description: League created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /leagues/{leagueId}:
+    get:
+      tags:
+        - Leagues
+      summary: Get league details
+      description: Returns detailed configuration and rules for a specific league. Publicly accessible.
+      operationId: getLeague
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueIdPath'
+      responses:
+        '200':
+          description: League details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ============================================================================
+  # TEAMS
+  # ============================================================================
+  /leagues/{leagueId}/teams:
+    get:
+      tags:
+        - Teams
+      summary: List teams in a league
+      description: Returns all member clubs and teams registered in the specified league. Publicly accessible.
+      operationId: getTeams
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueIdPath'
+      responses:
+        '200':
+          description: List of registered teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Team'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    post:
+      tags:
+        - Teams
+      summary: Register a new team in a league
+      description: Adds a new team with unique name, short code, and crest color. Requires Admin role.
+      operationId: createTeam
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamDto'
+      responses:
+        '201':
+          description: Team successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '400':
+          description: Validation error (e.g. duplicate team name in league)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ============================================================================
+  # MATCHES
+  # ============================================================================
+  /leagues/{leagueId}/matches:
+    get:
+      tags:
+        - Matches
+      summary: List matches for a league
+      description: Returns matches filtered by matchday or status. Publicly accessible.
+      operationId: getMatches
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueIdPath'
+        - name: status
+          in: query
+          required: false
+          description: Filter by match status
+          schema:
+            type: string
+            enum: [SCHEDULED, IN_PROGRESS, FINISHED, CANCELLED, ALL]
+            default: ALL
+        - name: matchday
+          in: query
+          required: false
+          description: Filter by round / matchday number
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Array of matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    post:
+      tags:
+        - Matches
+      summary: Schedule a new match
+      description: Creates and schedules a match fixture between two distinct teams. Requires Admin role.
+      operationId: createMatch
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMatchDto'
+      responses:
+        '201':
+          description: Match scheduled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          description: Validation error (e.g. homeTeamId equals awayTeamId)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /matches/{matchId}:
+    get:
+      tags:
+        - Matches
+      summary: Get match details
+      description: Returns full match info, scores, current period, and timeline events. Publicly accessible.
+      operationId: getMatch
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdPath'
+      responses:
+        '200':
+          description: Match details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ============================================================================
+  # SCOREKEEPER
+  # ============================================================================
+  /matches/{matchId}/start:
+    post:
+      tags:
+        - Scorekeeper
+      summary: Kick off / start match
+      description: Transitions match from SCHEDULED to IN_PROGRESS and starts period 1st Half. Requires Scorekeeper or Admin role.
+      operationId: startMatch
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdPath'
+      responses:
+        '200':
+          description: Match started and in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          description: Match is already in progress or completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /matches/{matchId}/score:
+    patch:
+      tags:
+        - Scorekeeper
+      summary: Update live score and period
+      description: Updates home/away scores, match period, and records an event log entry. Broadcasts real-time update. Requires Scorekeeper or Admin role.
+      operationId: updateScore
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScoreDto'
+      responses:
+        '200':
+          description: Live score successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          description: Invalid score (e.g. negative values) or match already finished
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /matches/{matchId}/finish:
+    post:
+      tags:
+        - Scorekeeper
+      summary: Finalize and finish match
+      description: >
+        Concludes the match, marks status as FINISHED, locks final scores,
+        and triggers automatic recalculation of league standings. Requires Scorekeeper or Admin role.
+      operationId: finishMatch
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchIdPath'
+      responses:
+        '200':
+          description: Match finalized and standings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          description: Match is already finished
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ============================================================================
+  # STANDINGS
+  # ============================================================================
+  /leagues/{leagueId}/standings:
+    get:
+      tags:
+        - Standings
+      summary: Get league standings table
+      description: >
+        Calculates and returns the league table based on the standard 3-1-0 points system.
+        Sorting order: Points > Goal Difference > Goals For > Head-to-Head > Team Name.
+        Optional query parameter `live=true` enables provisional preview including in-progress match scores.
+        Publicly accessible.
+      operationId: getStandings
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueIdPath'
+        - name: live
+          in: query
+          required: false
+          description: If true, provisional in-progress match scores are factored into standings
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Standings response with ranked table
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandingsResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ============================================================================
+  # REAL-TIME STREAMING
+  # ============================================================================
+  /stream:
+    get:
+      tags:
+        - Realtime
+      summary: Real-time event stream (SSE)
+      description: >
+        Server-Sent Events endpoint streaming live match updates (score changes, kickoff, final whistle)
+        and standings invalidation signals. Publicly accessible.
+      operationId: getStream
+      security: []
+      responses:
+        '200':
+          description: Continuous text/event-stream of ServiceEvents
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/ServiceEvent'
+
+  # ============================================================================
+  # DEV & UTILITY
+  # ============================================================================
+  /dev/reset:
+    post:
+      tags:
+        - Dev
+      summary: Reset database to demo state
+      description: Development utility to reset teams, fixtures, and scores back to the initial sample dataset. Requires Admin role.
+      operationId: resetDemoData
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Demo dataset restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Demo dataset successfully reset.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+# ==============================================================================
+# COMPONENTS
+# ==============================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer token authorization for Scorekeeper and Admin operations
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+      description: Secure, HttpOnly session cookie authentication
+
+  parameters:
+    LeagueIdPath:
+      name: leagueId
+      in: path
+      required: true
+      description: Unique identifier of the league
+      schema:
+        type: string
+        example: league-metro-2026
+
+    MatchIdPath:
+      name: matchId
+      in: path
+      required: true
+      description: Unique identifier of the match
+      schema:
+        type: string
+        example: match-301
+
+  schemas:
+    # --- Enums ---
+    MatchStatus:
+      type: string
+      enum: [SCHEDULED, IN_PROGRESS, FINISHED, CANCELLED]
+      example: IN_PROGRESS
+
+    MatchPeriod:
+      type: string
+      enum: [Not Started, 1st Half, Half Time, 2nd Half, Full Time]
+      example: 2nd Half
+
+    MatchResultChar:
+      type: string
+      enum: [W, D, L]
+      example: W
+
+    MatchEventType:
+      type: string
+      enum: [GOAL_HOME, GOAL_AWAY, SCORE_ADJUST, PERIOD_CHANGE, MATCH_STARTED, MATCH_FINISHED]
+      example: GOAL_HOME
+
+    ServiceEventType:
+      type: string
+      enum: [MATCH_UPDATED, MATCH_CREATED, MATCH_FINISHED, STANDINGS_RECALCULATED, RESET_DATA]
+      example: MATCH_UPDATED
+
+    # --- Domain Entities ---
+    League:
+      type: object
+      required:
+        - id
+        - name
+        - season
+        - sportType
+        - pointsWin
+        - pointsDraw
+        - pointsLoss
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: league-metro-2026
+        name:
+          type: string
+          example: Metropolitan Amateur Premier League
+        season:
+          type: string
+          example: 2026 / 2027
+        sportType:
+          type: string
+          example: Soccer
+        pointsWin:
+          type: integer
+          default: 3
+          example: 3
+        pointsDraw:
+          type: integer
+          default: 1
+          example: 1
+        pointsLoss:
+          type: integer
+          default: 0
+          example: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Team:
+      type: object
+      required:
+        - id
+        - leagueId
+        - name
+        - shortName
+        - logoColor
+        - createdAt
+      properties:
+        id:
+          type: string
+          example: team-riverside
+        leagueId:
+          type: string
+          example: league-metro-2026
+        name:
+          type: string
+          example: Riverside FC
+        shortName:
+          type: string
+          maxLength: 4
+          example: RFC
+        logoColor:
+          type: string
+          example: '#10b981'
+        logoUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: https://example.com/badges/rfc.png
+        createdAt:
+          type: string
+          format: date-time
+
+    MatchEvent:
+      type: object
+      required:
+        - id
+        - matchId
+        - type
+        - minute
+        - homeScoreAfter
+        - awayScoreAfter
+        - recordedAt
+      properties:
+        id:
+          type: string
+          example: ev-1
+        matchId:
+          type: string
+          example: match-301
+        type:
+          $ref: '#/components/schemas/MatchEventType'
+        minute:
+          type: integer
+          minimum: 0
+          example: 18
+        homeScoreAfter:
+          type: integer
+          minimum: 0
+          example: 1
+        awayScoreAfter:
+          type: integer
+          minimum: 0
+          example: 0
+        note:
+          type: string
+          nullable: true
+          example: Goal scored by Riverside FC
+        recordedAt:
+          type: string
+          format: date-time
+
+    Match:
+      type: object
+      required:
+        - id
+        - leagueId
+        - homeTeamId
+        - awayTeamId
+        - matchday
+        - scheduledAt
+        - status
+        - homeScore
+        - awayScore
+        - currentPeriod
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: match-301
+        leagueId:
+          type: string
+          example: league-metro-2026
+        homeTeamId:
+          type: string
+          example: team-riverside
+        awayTeamId:
+          type: string
+          example: team-redstar
+        matchday:
+          type: integer
+          minimum: 1
+          example: 3
+        scheduledAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MatchStatus'
+        homeScore:
+          type: integer
+          minimum: 0
+          example: 2
+        awayScore:
+          type: integer
+          minimum: 0
+          example: 1
+        currentPeriod:
+          $ref: '#/components/schemas/MatchPeriod'
+        elapsedMinutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          example: 68
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchEvent'
+
+    TeamStanding:
+      type: object
+      required:
+        - rank
+        - teamId
+        - teamName
+        - shortName
+        - logoColor
+        - played
+        - won
+        - drawn
+        - lost
+        - goalsFor
+        - goalsAgainst
+        - goalDifference
+        - points
+        - form
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+          example: 1
+        teamId:
+          type: string
+          example: team-riverside
+        teamName:
+          type: string
+          example: Riverside FC
+        shortName:
+          type: string
+          example: RFC
+        logoColor:
+          type: string
+          example: '#10b981'
+        played:
+          type: integer
+          minimum: 0
+          example: 3
+        won:
+          type: integer
+          minimum: 0
+          example: 2
+        drawn:
+          type: integer
+          minimum: 0
+          example: 1
+        lost:
+          type: integer
+          minimum: 0
+          example: 0
+        goalsFor:
+          type: integer
+          minimum: 0
+          example: 9
+        goalsAgainst:
+          type: integer
+          minimum: 0
+          example: 3
+        goalDifference:
+          type: integer
+          example: 6
+        points:
+          type: integer
+          minimum: 0
+          example: 7
+        form:
+          type: array
+          description: Outcomes of up to the last 5 completed matches (newest first)
+          items:
+            $ref: '#/components/schemas/MatchResultChar'
+          example: [W, W, D]
+
+    StandingsResponse:
+      type: object
+      required:
+        - leagueId
+        - leagueName
+        - calculatedAt
+        - standings
+      properties:
+        leagueId:
+          type: string
+          example: league-metro-2026
+        leagueName:
+          type: string
+          example: Metropolitan Amateur Premier League
+        calculatedAt:
+          type: string
+          format: date-time
+        isLiveProvisional:
+          type: boolean
+          default: false
+          example: false
+        standings:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamStanding'
+
+    ServiceEvent:
+      type: object
+      required:
+        - type
+        - payload
+      properties:
+        type:
+          $ref: '#/components/schemas/ServiceEventType'
+        payload:
+          type: object
+          description: Event payload data (e.g. updated Match or League ID)
+
+    # --- DTOs ---
+    CreateLeagueDto:
+      type: object
+      required:
+        - name
+        - season
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          example: Metropolitan Amateur Premier League
+        season:
+          type: string
+          minLength: 1
+          maxLength: 30
+          example: 2026 / 2027
+        sportType:
+          type: string
+          default: Soccer
+          example: Soccer
+        pointsWin:
+          type: integer
+          minimum: 0
+          default: 3
+          example: 3
+        pointsDraw:
+          type: integer
+          minimum: 0
+          default: 1
+          example: 1
+        pointsLoss:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 0
+
+    CreateTeamDto:
+      type: object
+      required:
+        - name
+        - shortName
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: Phoenix Rising FC
+        shortName:
+          type: string
+          minLength: 2
+          maxLength: 4
+          example: PHX
+        logoColor:
+          type: string
+          pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$'
+          default: '#10b981'
+          example: '#10b981'
+
+    CreateMatchDto:
+      type: object
+      required:
+        - homeTeamId
+        - awayTeamId
+        - matchday
+        - scheduledAt
+      properties:
+        leagueId:
+          type: string
+          description: Optional if leagueId is specified in the route URL
+          example: league-metro-2026
+        homeTeamId:
+          type: string
+          example: team-riverside
+        awayTeamId:
+          type: string
+          example: team-apex
+        matchday:
+          type: integer
+          minimum: 1
+          example: 3
+        scheduledAt:
+          type: string
+          format: date-time
+          example: '2026-09-18T18:30:00.000Z'
+
+    UpdateScoreDto:
+      type: object
+      required:
+        - homeScore
+        - awayScore
+      properties:
+        homeScore:
+          type: integer
+          minimum: 0
+          example: 2
+        awayScore:
+          type: integer
+          minimum: 0
+          example: 1
+        period:
+          $ref: '#/components/schemas/MatchPeriod'
+        minute:
+          type: integer
+          minimum: 0
+          maximum: 130
+          example: 72
+        note:
+          type: string
+          maxLength: 200
+          example: Goal scored by Riverside FC
+
+    # --- Error Model ---
+    ErrorResponse:
+      type: object
+      required:
+        - message
+        - statusCode
+      properties:
+        message:
+          type: string
+          example: Invalid input parameters.
+        statusCode:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        details:
+          type: array
+          items:
+            type: string
+          example: ['homeTeamId and awayTeamId must not be equal']
+
+  responses:
+    BadRequestError:
+      description: Bad Request - Missing or invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    UnauthorizedError:
+      description: Unauthorized - Authentication token or session missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ForbiddenError:
+      description: Forbidden - Insufficient permissions for this action (e.g. requires Admin or Scorekeeper role)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
