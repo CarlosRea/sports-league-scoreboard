@@ -19,6 +19,21 @@ class Settings:
     def DATABASE_URL(self) -> str:
         return os.getenv("DATABASE_URL", "sqlite:///./scoreboard.db")
 
+    # Static Files (Frontend)
+    @property
+    def STATIC_DIR(self) -> str | None:
+        custom_dir = os.getenv("STATIC_DIR")
+        if custom_dir and os.path.isdir(custom_dir):
+            return custom_dir
+        if os.path.isdir("/app/static"):
+            return "/app/static"
+        local_candidate = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+        )
+        if os.path.isdir(local_candidate):
+            return local_candidate
+        return None
+
     def __init__(self):
         self._ephemeral_secret: str | None = None
 

@@ -8,7 +8,8 @@ import { HttpScoreboardService } from './apiService';
  * If VITE_USE_MOCK is explicitly set to 'true', MockScoreboardService is used instead.
  */
 const useMock = import.meta.env.VITE_USE_MOCK === 'true';
-const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8009/api';
+const defaultApiUrl = import.meta.env.PROD ? '/api' : 'http://127.0.0.1:8009/api';
+const apiUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
 
 export const scoreboardService: IScoreboardService = useMock
   ? new MockScoreboardService()

@@ -1,9 +1,11 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.models.common import ErrorResponse
@@ -83,3 +85,45 @@ app.include_router(dev_router, prefix=api_prefix)
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {"status": "healthy", "service": settings.PROJECT_NAME}
+
+
+# Serve Frontend Static Assets and SPA fallback if available
+static_dir = settings.STATIC_DIR
+if static_dir and os.path.isdir(static_dir):
+    assets_dir = os.path.join(static_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa_frontend(full_path: str):
+        # Exclude API endpoints, docs, and health checks
+        if (
+            full_path.startswith("api")
+            or full_path.startswith("docs")
+            or full_path.startswith("redoc")
+            or full_path == "openapi.json"
+            or full_path == "health"
+        ):
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"detail": "Not Found"},
+            )
+
+        # Secure path traversal verification
+        resolved_static = os.path.abspath(static_dir)
+        requested_file = os.path.abspath(os.path.join(static_dir, full_path))
+        if os.path.isfile(requested_file) and (
+            requested_file == resolved_static or requested_file.startswith(resolved_static + os.sep)
+        ):
+            return FileResponse(requested_file)
+
+        # Fallback to SPA index.html for client-side routing
+        index_file = os.path.join(static_dir, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "Not Found"},
+        )
+
