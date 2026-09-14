@@ -58,7 +58,8 @@ For the backend, **`uv`** is the required tool for Python packaging, dependency 
 | **Add Dev Dependency** | `uv add --dev <PACKAGE-NAME>` |
 | **Remove Dependency** | `uv remove <PACKAGE-NAME>` |
 | **Run Python Script** | `uv run python <PYTHON-FILE>` |
-| **Run Application Server** | `uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000` |
+| **Run Application Server** | `uv run uvicorn main:app --reload --host 127.0.0.1 --port 8009` |
+
 | **Run Test Suite** | `uv run pytest` |
 | **Code Formatting & Linting** | `uv run ruff check` / `uv run ruff format` |
 

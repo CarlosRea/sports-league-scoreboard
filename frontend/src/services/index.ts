@@ -4,15 +4,15 @@ import { HttpScoreboardService } from './apiService';
 
 /**
  * Service Factory:
- * Defaults to the in-browser MockScoreboardService with persistent localStorage.
- * If VITE_USE_REAL_API is set to 'true', HttpScoreboardService is used.
+ * Connects to the real FastAPI backend running on port 8009 by default.
+ * If VITE_USE_MOCK is explicitly set to 'true', MockScoreboardService is used instead.
  */
-const useRealApi = import.meta.env.VITE_USE_REAL_API === 'true';
-const apiUrl = import.meta.env.VITE_API_URL || '/api';
+const useMock = import.meta.env.VITE_USE_MOCK === 'true';
+const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8009/api';
 
-export const scoreboardService: IScoreboardService = useRealApi
-  ? new HttpScoreboardService(apiUrl)
-  : new MockScoreboardService();
+export const scoreboardService: IScoreboardService = useMock
+  ? new MockScoreboardService()
+  : new HttpScoreboardService(apiUrl);
 
 export * from './types';
 export * from './mockService';

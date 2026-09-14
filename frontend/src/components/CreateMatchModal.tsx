@@ -17,8 +17,6 @@ export const CreateMatchModal: React.FC<CreateMatchModalProps> = ({
   onClose,
   onCreateMatch,
 }) => {
-  if (!isOpen) return null;
-
   const [homeTeamId, setHomeTeamId] = useState(teams[0]?.id || '');
   const [awayTeamId, setAwayTeamId] = useState(teams[1]?.id || '');
   const [matchday, setMatchday] = useState<number>(1);
@@ -30,6 +28,8 @@ export const CreateMatchModal: React.FC<CreateMatchModalProps> = ({
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

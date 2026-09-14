@@ -26,27 +26,29 @@ export const PitchsideScorekeeperModal: React.FC<PitchsideScorekeeperModalProps>
   onUpdateScore,
   onFinishMatch,
 }) => {
-  if (!match) return null;
-
-  const home = teams.find(t => t.id === match.homeTeamId);
-  const away = teams.find(t => t.id === match.awayTeamId);
-
   // Local state for responsive real-time feedback
-  const [homeScore, setHomeScore] = useState(match.homeScore);
-  const [awayScore, setAwayScore] = useState(match.awayScore);
-  const [period, setPeriod] = useState<MatchPeriod>(match.currentPeriod);
-  const [minute, setMinute] = useState<number>(match.elapsedMinutes || 1);
+  const [homeScore, setHomeScore] = useState(match?.homeScore ?? 0);
+  const [awayScore, setAwayScore] = useState(match?.awayScore ?? 0);
+  const [period, setPeriod] = useState<MatchPeriod>(match?.currentPeriod ?? '1st Half');
+  const [minute, setMinute] = useState<number>(match?.elapsedMinutes || 1);
   const [showConfirmFinish, setShowConfirmFinish] = useState(false);
   const [quickNote, setQuickNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Sync with prop updates if match changes
   useEffect(() => {
-    setHomeScore(match.homeScore);
-    setAwayScore(match.awayScore);
-    setPeriod(match.currentPeriod);
-    setMinute(match.elapsedMinutes || 1);
+    if (match) {
+      setHomeScore(match.homeScore);
+      setAwayScore(match.awayScore);
+      setPeriod(match.currentPeriod);
+      setMinute(match.elapsedMinutes || 1);
+    }
   }, [match]);
+
+  if (!match) return null;
+
+  const home = teams.find(t => t.id === match.homeTeamId);
+  const away = teams.find(t => t.id === match.awayTeamId);
 
   const isFinished = match.status === 'FINISHED';
 

@@ -15,13 +15,13 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
   onClose,
   onCreateTeam,
 }) => {
-  if (!isOpen) return null;
-
   const [name, setName] = useState('');
   const [shortName, setShortName] = useState('');
   const [logoColor, setLogoColor] = useState('#10b981');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!isOpen) return null;
 
   const presetColors = [
     '#10b981', '#0284c7', '#ef4444', '#f59e0b',
