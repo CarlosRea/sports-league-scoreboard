@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: scoreboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sdip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sdip}
+      POSTGRES_DB: ${POSTGRES_DB:-sdip}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sdip} -d ${POSTGRES_DB:-sdip}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sports-scoreboard:latest
+    container_name: scoreboard-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sdip}:${POSTGRES_PASSWORD:-sdip}@db:5432/${POSTGRES_DB:-sdip}
+      PORT: 8009
+      HOST: 0.0.0.0
+    ports:
+      - "8009:8009"
+
+volumes:
+  pgdata:
+    name: scoreboard-pgdata

@@ -34,9 +34,60 @@ The application features a contract-first architecture with a **React 19 + TypeS
 
 ## 🚀 Quick Start
 
-### Option 1: Run with Docker (Recommended)
+### Option 1: Run Full Stack with PostgreSQL (Recommended)
 
-Run both the frontend and backend in a single, self-contained container:
+Run the complete production-grade stack (**PostgreSQL 16** + **FastAPI Backend** + **React Frontend**) with Docker Compose:
+
+```bash
+# Launch PostgreSQL and Application containers
+make compose-up
+# Or directly: docker compose up -d --build
+```
+
+- **Web Application**: Open [http://localhost:8009](http://localhost:8009)
+- **API Documentation**: Open [http://localhost:8009/docs](http://localhost:8009/docs) (Swagger UI) or [http://localhost:8009/redoc](http://localhost:8009/redoc) (ReDoc)
+- **PostgreSQL Host Port**: `localhost:5434` (User: `sdip`, Password: `sdip`, Database: `sdip`)
+
+To stop the Docker Compose stack:
+```bash
+make compose-down
+# Or directly: docker compose down
+```
+
+#### Running PostgreSQL Standalone via Docker
+
+You can also start PostgreSQL and the app container individually on a Docker network:
+
+```bash
+# 1. Create network
+docker network create scoreboard-network || true
+
+# 2. Start PostgreSQL 16
+docker run -d \
+  --name scoreboard-db \
+  --network scoreboard-network \
+  -e POSTGRES_USER=sdip \
+  -e POSTGRES_PASSWORD=sdip \
+  -e POSTGRES_DB=sdip \
+  -p 5434:5432 \
+  -v scoreboard-pgdata:/var/lib/postgresql/data \
+  postgres:16-alpine
+
+# 3. Build & run App container connected to Postgres
+docker build -t sports-scoreboard:latest .
+
+docker run -d --rm -p 8009:8009 \
+  --network scoreboard-network \
+  -e DATABASE_URL=postgresql://sdip:sdip@scoreboard-db:5432/sdip \
+  -e PORT=8009 \
+  --name sports-scoreboard sports-scoreboard:latest
+```
+
+---
+
+### Option 2: Run with SQLite in a Single Container
+
+For local testing without a database server, run with the internal SQLite engine:
 
 ```bash
 # Build Docker image
@@ -46,17 +97,14 @@ make build-docker
 make run-docker
 ```
 
-- **Web Application**: Open [http://localhost:8009](http://localhost:8009)
-- **API Documentation**: Open [http://localhost:8009/docs](http://localhost:8009/docs) (Swagger UI) or [http://localhost:8009/redoc](http://localhost:8009/redoc) (ReDoc)
-
-To stop and remove the container:
+To stop:
 ```bash
 make stop-docker
 ```
 
 ---
 
-### Option 2: Local Development
+### Option 3: Local Development
 
 #### Prerequisites
 - [Node.js](https://nodejs.org/) (>= 20) & `npm`

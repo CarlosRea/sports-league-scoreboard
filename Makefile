@@ -9,14 +9,21 @@ BACKEND_DIR  := backend
 FRONTEND_DIR := frontend
 BACKEND_PORT := 8009
 FRONTEND_PORT:= 5173
-IMAGE_NAME   := sports-league-scoreboard
+IMAGE_NAME   := sports-scoreboard
 CONTAINER_NAME := scoreboard-app
+POSTGRES_CONTAINER := scoreboard-db
+POSTGRES_PORT := 5434
+POSTGRES_USER := sdip
+POSTGRES_PASSWORD := sdip
+POSTGRES_DB   := sdip
+POSTGRES_VOLUME := scoreboard-pgdata
 
 .PHONY: help install install-backend install-frontend \
         run-backend run-frontend dev \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
-        build-frontend build-docker run-docker stop-docker clean
+        build-frontend build-docker run-docker stop-docker \
+        run-postgres stop-postgres compose-up compose-down clean
 
 # Default target: list commands
 help:
@@ -46,6 +53,10 @@ help:
 	@echo "   make build-docker        Build the multi-stage Docker image"
 	@echo "   make run-docker          Run the Docker container on port $(BACKEND_PORT)"
 	@echo "   make stop-docker         Stop and remove the running Docker container"
+	@echo "   make run-postgres        Start PostgreSQL container on port $(POSTGRES_PORT)"
+	@echo "   make stop-postgres       Stop PostgreSQL container"
+	@echo "   make compose-up          Launch complete stack (App + Postgres) with Docker Compose"
+	@echo "   make compose-down        Tear down Docker Compose stack"
 	@echo ""
 	@echo " Housekeeping:"
 	@echo "   make clean               Clean build artifacts, test caches, and db files"
@@ -128,6 +139,33 @@ stop-docker:
 	@echo "--> Stopping and removing Docker container '$(CONTAINER_NAME)'..."
 	@-docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	@-docker rm $(CONTAINER_NAME) 2>/dev/null || true
+
+run-postgres:
+	@echo "--> Starting PostgreSQL container '$(POSTGRES_CONTAINER)' on port $(POSTGRES_PORT)..."
+	@docker run -d \
+		--name $(POSTGRES_CONTAINER) \
+		-e POSTGRES_USER=$(POSTGRES_USER) \
+		-e POSTGRES_PASSWORD=$(POSTGRES_PASSWORD) \
+		-e POSTGRES_DB=$(POSTGRES_DB) \
+		-p $(POSTGRES_PORT):5432 \
+		-v $(POSTGRES_VOLUME):/var/lib/postgresql/data \
+		postgres:16-alpine
+	@echo "PostgreSQL is now live at localhost:$(POSTGRES_PORT) (user: $(POSTGRES_USER), db: $(POSTGRES_DB))"
+
+stop-postgres:
+	@echo "--> Stopping and removing PostgreSQL container '$(POSTGRES_CONTAINER)'..."
+	@-docker stop $(POSTGRES_CONTAINER) 2>/dev/null || true
+	@-docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
+
+compose-up:
+	@echo "--> Launching complete stack (App + PostgreSQL) with Docker Compose..."
+	@docker compose up -d --build
+	@echo "App is live at http://127.0.0.1:$(BACKEND_PORT)"
+
+compose-down:
+	@echo "--> Stopping Docker Compose stack..."
+	@docker compose down
+
 
 # ==============================================================================
 # Cleanup

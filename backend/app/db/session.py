@@ -15,6 +15,9 @@ def create_db_engine(database_url: str):
     Automatically handles SQLite specifics (threading, foreign keys, StaticPool for memory)
     and production RDBMS settings (connection pooling, pre-ping).
     """
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+
     if database_url.startswith("sqlite"):
         connect_args = {"check_same_thread": False}
         is_memory = ":memory:" in database_url or "mode=memory" in database_url
