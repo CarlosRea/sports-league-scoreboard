@@ -94,36 +94,43 @@ if static_dir and os.path.isdir(static_dir):
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa_frontend(full_path: str):
-        # Exclude API endpoints, docs, and health checks
-        if (
-            full_path.startswith("api")
-            or full_path.startswith("docs")
-            or full_path.startswith("redoc")
-            or full_path == "openapi.json"
-            or full_path == "health"
-        ):
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={"detail": "Not Found"},
-            )
 
-        # Secure path traversal verification
-        resolved_static = os.path.abspath(static_dir)
-        requested_file = os.path.abspath(os.path.join(static_dir, full_path))
-        if os.path.isfile(requested_file) and (
-            requested_file == resolved_static or requested_file.startswith(resolved_static + os.sep)
-        ):
-            return FileResponse(requested_file)
-
-        # Fallback to SPA index.html for client-side routing
-        index_file = os.path.join(static_dir, "index.html")
-        if os.path.isfile(index_file):
-            return FileResponse(index_file)
-
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa_frontend(full_path: str):
+    # Exclude API endpoints, docs, and health checks
+    if (
+        full_path.startswith("api")
+        or full_path.startswith("docs")
+        or full_path.startswith("redoc")
+        or full_path == "openapi.json"
+        or full_path == "health"
+    ):
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": "Not Found"},
         )
 
+    current_static = settings.STATIC_DIR
+    if not current_static or not os.path.isdir(current_static):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "Frontend static assets not configured or not found"},
+        )
+
+    # Secure path traversal verification
+    resolved_static = os.path.abspath(current_static)
+    requested_file = os.path.abspath(os.path.join(current_static, full_path))
+    if os.path.isfile(requested_file) and (
+        requested_file == resolved_static or requested_file.startswith(resolved_static + os.sep)
+    ):
+        return FileResponse(requested_file)
+
+    # Fallback to SPA index.html for client-side routing
+    index_file = os.path.join(current_static, "index.html")
+    if os.path.isfile(index_file):
+        return FileResponse(index_file)
+
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": "Not Found"},
+    )
