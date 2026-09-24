@@ -111,7 +111,7 @@ test-frontend:
 
 e2e:
 	@echo "--> Running backend tests..."
-	@pytest tests/ -v
+	@uv run --project backend pytest tests/ -v || pytest tests/ -v
 	@echo "--> Running Playwright E2E against running compose stack..."
 	@npx playwright test
 

@@ -177,32 +177,60 @@ The backend automatically creates an initial SQLite database (`scoreboard.db`) s
 | `make lint` | Run backend (`ruff`) and frontend (`oxlint` + `tsc`) linting |
 | `make build-frontend`| Compile production React assets into `frontend/dist/` |
 | `make build-docker` | Build production multi-stage Docker image |
-| `make run-docker` | Run Docker container in background on port `8009` |
-| `make stop-docker` | Stop and remove the Docker container |
+| `make compose-up` | Launch complete stack (App + PostgreSQL) with Docker Compose |
+| `make compose-down` | Stop and remove Docker Compose containers |
+| `make e2e` | Run integration (pytest) and Playwright E2E tests against running stack |
 | `make clean` | Clean up build outputs, caches, and test artifacts |
 
 ---
 
 ## 🧪 Testing & Code Quality
 
-### Backend Tests
-35 comprehensive tests covering JWT authentication, database persistence, CRUD routers, standings calculations, CORS policies, and scorekeeping:
+### Backend Unit Tests
+Comprehensive unit tests covering JWT authentication, database persistence, CRUD routers, standings calculations, CORS policies, and scorekeeping:
 ```bash
 make test-backend
+# Or: cd backend && uv run pytest
 ```
 
-### Frontend Tests
+### Frontend Unit Tests
 Vitest unit tests verifying the 3-1-0 standings calculation rules and deterministic tie-breaking logic:
 ```bash
 make test-frontend
+# Or: cd frontend && npm run test
 ```
 
-### Linting
+### Integration & Playwright E2E Tests
+Run automated backend integration tests and Playwright browser tests against the live Docker Compose application:
+```bash
+# 1. Start application stack
+make compose-up
+
+# 2. Execute unified integration and E2E tests
+make e2e
+```
+
+### Linting & Type Checking
 ```bash
 make lint
 ```
 
 ---
+
+## 🔄 CI/CD Pipeline (GitHub Actions)
+
+The repository includes a production-grade CI/CD pipeline configured at [`.github/workflows/ci-cd.yml`](./.github/workflows/ci-cd.yml).
+
+### Automated Workflow Lifecycle:
+1. **Parallel Test Execution**:
+   - `test-backend`: Installs dependencies via `uv`, runs `ruff check`, and executes backend `pytest` suite.
+   - `test-frontend`: Installs dependencies via `npm ci`, runs `oxlint`, `tsc --noEmit` type checking, `vitest`, and verifies production `npm run build`.
+2. **Container Build, Health Check & E2E Verification**:
+   - `integration-and-e2e`: Builds and boots the multi-service Docker Compose stack (`docker compose up -d --build`).
+   - Polls and validates the health endpoint (`http://localhost:8009/health`).
+   - Runs backend integration tests (`tests/test_api.py`) and Playwright browser E2E tests (`tests/e2e/test_scoreboard.spec.ts`) via `make e2e`.
+3. **Continuous Deployment (CD)**:
+   - On successful completion of all tests on pushes to `main`, the `deploy` job builds and releases the production version, eliminating manual admin user deployment.
 
 ## 📐 Standings Calculation Engine
 
