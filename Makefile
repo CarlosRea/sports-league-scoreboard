@@ -19,7 +19,7 @@ POSTGRES_DB   := sdip
 POSTGRES_VOLUME := scoreboard-pgdata
 
 .PHONY: help install install-backend install-frontend \
-        run-backend run-frontend dev \
+        run run-backend run-frontend dev \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
         build-frontend build-docker run-docker stop-docker \
@@ -78,6 +78,8 @@ install-frontend:
 # ==============================================================================
 # Local Development Execution
 # ==============================================================================
+run: run-backend
+
 run-backend:
 	@echo "--> Starting FastAPI server on http://127.0.0.1:$(BACKEND_PORT)..."
 	@cd $(BACKEND_DIR) && uv run uvicorn app.main:app --reload --host 127.0.0.1 --port $(BACKEND_PORT)

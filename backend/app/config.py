@@ -17,7 +17,11 @@ class Settings:
     # Database
     @property
     def DATABASE_URL(self) -> str:
-        return os.getenv("DATABASE_URL", "sqlite:///./scoreboard.db")
+        return (
+            os.getenv("SDIP_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+            or "sqlite:///./scoreboard.db"
+        )
 
     # Static Files (Frontend)
     @property
