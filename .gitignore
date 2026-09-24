@@ -44,3 +44,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Test outputs
+test-results/
+playwright-report/

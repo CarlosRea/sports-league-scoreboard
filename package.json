@@ -1,0 +1,18 @@
+{
+  "name": "sports-league-scoreboard",
+  "version": "1.0.0",
+  "description": "A modern, responsive web application designed for amateur sports leagues to manage schedules, record pitchside live scores, complete matches, and automatically compute official league standings.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

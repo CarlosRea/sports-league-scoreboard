@@ -20,7 +20,7 @@ POSTGRES_VOLUME := scoreboard-pgdata
 
 .PHONY: help install install-backend install-frontend \
         run run-backend run-frontend dev \
-        test test-backend test-frontend \
+        test test-backend test-frontend e2e \
         lint lint-backend lint-frontend \
         build-frontend build-docker run-docker stop-docker \
         run-postgres stop-postgres compose-up compose-down clean
@@ -44,6 +44,7 @@ help:
 	@echo "   make test                Run all backend (pytest) and frontend (vitest) tests"
 	@echo "   make test-backend        Run pytest backend tests"
 	@echo "   make test-frontend       Run vitest frontend tests"
+	@echo "   make e2e                 Run integration (pytest) and Playwright E2E tests"
 	@echo "   make lint                Run ruff linting (backend) and oxlint (frontend)"
 	@echo "   make lint-backend        Run ruff on backend"
 	@echo "   make lint-frontend       Run oxlint and tsc typecheck on frontend"
@@ -107,6 +108,12 @@ test-backend:
 test-frontend:
 	@echo "--> Running frontend test suite with vitest..."
 	@cd $(FRONTEND_DIR) && npm run test
+
+e2e:
+	@echo "--> Running backend tests..."
+	@pytest tests/ -v
+	@echo "--> Running Playwright E2E against running compose stack..."
+	@npx playwright test
 
 # ==============================================================================
 # Linting & Code Quality
