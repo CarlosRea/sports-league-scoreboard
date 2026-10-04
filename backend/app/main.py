@@ -12,6 +12,7 @@ from app.db.session import engine
 from app.models.common import ErrorResponse
 from app.routers import (
     auth_router,
+    canvas_router,
     dev_router,
     leagues_router,
     matches_router,
@@ -84,6 +85,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Mount Routers under API Prefix
 api_prefix = settings.API_PREFIX
 app.include_router(auth_router, prefix=api_prefix)
+app.include_router(canvas_router, prefix=api_prefix)
 app.include_router(leagues_router, prefix=api_prefix)
 app.include_router(teams_router, prefix=api_prefix)
 app.include_router(matches_router, prefix=api_prefix)

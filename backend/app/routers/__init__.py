@@ -1,4 +1,5 @@
 from .auth import router as auth_router
+from .canvas import router as canvas_router
 from .dev import router as dev_router
 from .leagues import router as leagues_router
 from .matches import router as matches_router
@@ -10,6 +11,7 @@ from .telemetry import router as telemetry_router
 
 __all__ = [
     "auth_router",
+    "canvas_router",
     "dev_router",
     "leagues_router",
     "matches_router",

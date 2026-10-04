@@ -1,4 +1,5 @@
 from .auth import LoginRequest, Token, User, UserOut, UserRole
+from .canvas import CanvasComponent, CanvasComponentConfig, CreateCanvasComponentDto
 from .common import ErrorResponse, ServiceEvent
 from .league import CreateLeagueDto, League
 from .match import (
@@ -14,6 +15,9 @@ from .standings import MatchResultChar, StandingsResponse, TeamStanding
 from .team import CreateTeamDto, Team
 
 __all__ = [
+    "CanvasComponent",
+    "CanvasComponentConfig",
+    "CreateCanvasComponentDto",
     "CreateLeagueDto",
     "CreateMatchDto",
     "CreateTeamDto",
