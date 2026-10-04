@@ -37,7 +37,7 @@ PROD_POSTGRES_VOLUME := scoreboard-prod-pgdata
         run-postgres stop-postgres compose-up compose-down clean \
         compose-up-prod compose-down-prod compose-logs-prod compose-ps-prod \
         compose-up-dev compose-down-dev compose-logs-dev compose-ps-dev \
-        prod-up prod-down dev-up dev-down test-prod
+        prod-up prod-down dev-up dev-down test-prod promote-to-prod
 
 # Default target: list commands
 help:
@@ -75,6 +75,7 @@ help:
 	@echo "   make compose-logs-prod   Follow logs for production stack"
 	@echo "   make compose-ps-prod     Status of production stack containers"
 	@echo "   make test-prod           Run health and API checks against production"
+	@echo "   make promote-to-prod     Promote dev to production with automated tests & deployment"
 	@echo ""
 	@echo " Standalone Containers:"
 	@echo "   make build-frontend      Compile frontend production assets to dist/"
@@ -242,6 +243,17 @@ test-prod:
 	@curl -sf http://127.0.0.1:$(PROD_PORT)/health | grep -q "healthy" && echo "✅ Production healthcheck PASSED"
 	@echo "--> Running integration test suite against production endpoint..."
 	@API_BASE_URL=http://localhost:$(PROD_PORT) uv run --project backend pytest tests/test_api.py -v
+
+promote-to-prod:
+	@echo "--> Initiating promotion from dev to production..."
+	@echo "1. Running pre-promotion test verification..."
+	@$(MAKE) test
+	@echo "2. Deploying production stack with docker-compose.prod.yaml..."
+	@$(MAKE) compose-up-prod
+	@echo "3. Running post-promotion verification tests against production..."
+	@$(MAKE) test-prod
+	@echo "--> Promotion complete! Production is live and verified at http://127.0.0.1:$(PROD_PORT)"
+
 
 
 

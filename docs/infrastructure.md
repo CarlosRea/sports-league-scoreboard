@@ -127,3 +127,33 @@ The repository provides automated verification covering both environments:
 - **Backend API Integration Tests (`tests/test_api.py`)**: Tests all CRUD and standings endpoints against any target environment via `API_BASE_URL`.
 - **Environment Isolation Tests (`tests/test_environment_isolation.py`)**: Verifies health of both environments simultaneously, checks JWT signature rejection across boundaries, and confirms data mutations in dev do not affect prod.
 - **End-to-End Browser Tests (`tests/e2e/test_scoreboard.spec.ts`)**: Runs Playwright user journeys against dev (`:8009`) or prod (`:8010`).
+
+---
+
+## 6. Production Promotion Lifecycle
+
+Promoting a development release to production is managed through two automated pathways:
+
+### 1. Manual GitHub Actions Promotion Workflow (`promote-to-production.yml`)
+Located at `.github/workflows/promote-to-production.yml`, this workflow provides a controlled promotion gate triggered via `workflow_dispatch`:
+
+- **Inputs**:
+  - `source_ref`: Branch, tag, or commit SHA from dev to promote (default: `main`).
+  - `release_version`: Semantic release tag (e.g. `v1.2.0`; auto-generated if left blank).
+  - `run_tests`: Boolean flag to run backend Pytest, frontend Vitest, linters, and build prior to promotion.
+  - `run_e2e`: Boolean flag to run Playwright browser tests against the live production deployment.
+  - `dry_run`: Boolean flag to validate configuration and build images without modifying production.
+  - `promotion_notes`: Audit changelog summary stored in GitHub Step Summary.
+- **Lifecycle**:
+  1. **Pre-flight Gate**: Executes backend and frontend test suites and linters.
+  2. **Image Baking**: Builds multi-stage release image tagged as `sports-scoreboard:${version}` and `sports-scoreboard:prod`.
+  3. **Stack Deployment**: Executes `docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build`.
+  4. **Post-Deployment Gate**: Polls `/health` on port 8010, runs backend API integration tests, and executes Playwright E2E browser tests.
+  5. **Audit Logging**: Emits structured deployment report to `$GITHUB_STEP_SUMMARY`.
+
+### 2. Local Promotion Command
+```bash
+make promote-to-prod
+```
+Executes pre-promotion unit tests, triggers the production Docker Compose build and startup, and runs integration verification tests against `http://localhost:8010`.
+

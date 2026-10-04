@@ -302,6 +302,61 @@ flowchart TD
 
 ---
 
+### 🚀 Manual Production Promotion Workflow (`promote-to-production.yml`)
+
+The repository includes a dedicated manual promotion workflow configured at [`.github/workflows/promote-to-production.yml`](./.github/workflows/promote-to-production.yml). It enables team members to manually promote any validated development version to the production infrastructure with configurable safety checks and comprehensive audit trails.
+
+#### Triggering the Promotion Workflow:
+1. **GitHub Web UI**: Navigate to **Actions** ➔ **Promote Dev to Production** ➔ **Run workflow**.
+2. **GitHub CLI (`gh`)**:
+   ```bash
+   gh workflow run promote-to-production.yml \
+     -f source_ref=main \
+     -f release_version=v1.1.0 \
+     -f run_tests=true \
+     -f run_e2e=true \
+     -f dry_run=false \
+     -f promotion_notes="Promoting sprint release with scorekeeper updates"
+   ```
+3. **Local CLI Equivalent**:
+   ```bash
+   make promote-to-prod
+   ```
+
+#### Workflow Inputs & Options:
+| Input | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `source_ref` | string | `main` | Dev source branch, tag, or commit SHA to promote |
+| `release_version` | string | *(auto)* | Release version tag (e.g. `v1.1.0`; auto-generates `vYYYY.MM.DD-<sha>` if omitted) |
+| `run_tests` | boolean| `true` | Runs complete pre-promotion verification suite (Pytest, Vitest, linters, build) |
+| `run_e2e` | boolean| `true` | Executes Playwright browser E2E tests against live production on port 8010 |
+| `dry_run` | boolean| `false` | Builds release image and validates compose configuration without modifying live production |
+| `promotion_notes`| string| *(preset)*| Audit log reason / changelog notes recorded in `$GITHUB_STEP_SUMMARY` |
+
+#### Promotion Pipeline Execution:
+```mermaid
+flowchart TD
+    Dispatch["Manual Trigger: workflow_dispatch<br/>(Inputs: source_ref, release_version, dry_run)"] --> Gate
+    
+    subgraph Gate ["1. Pre-Promotion Verification Gate"]
+        CheckBackend["Backend: uv sync, ruff lint, pytest"]
+        CheckFrontend["Frontend: npm ci, oxlint, tsc, vitest, vite build"]
+    end
+    
+    Gate --> BuildStage["2. Build Production Release Image<br/>• Tag: sports-scoreboard:vX.Y.Z<br/>• Tag: sports-scoreboard:prod"]
+    
+    BuildStage --> DeployChoice{"Dry Run?"}
+    DeployChoice -- Yes --> AuditDry["Record Dry-Run Validation to Step Summary"]
+    DeployChoice -- No --> DeployProd["3. Deploy to Production Stack<br/>• docker compose -f docker-compose.prod.yaml up -d<br/>• Isolated volume: scoreboard-prod-pgdata<br/>• Isolated network: scoreboard-prod-network"]
+    
+    DeployProd --> VerifyProd["4. Post-Promotion Verification<br/>• Poll http://localhost:8010/health<br/>• Run API tests against :8010<br/>• Run Playwright E2E browser tests"]
+    
+    VerifyProd --> AuditSummary["5. Generate Audit Report in Step Summary<br/>• Actor, commit SHA, version tag, health status"]
+```
+
+
+---
+
 ## 📐 Standings Calculation Engine
 
 Official standings are derived from finished matches using the standard amateur scoring rules:
@@ -324,7 +379,8 @@ Official standings are derived from finished matches using the standard amateur 
 sports-league-scoreboard/
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml           # GitHub Actions CI/CD pipeline definition
+│       ├── ci-cd.yml                   # Automated CI/CD pipeline (tests & automated deployment)
+│       └── promote-to-production.yml   # Manual workflow promoting dev version to production
 ├── AGENTS.md                   # Operating standards & guidelines for developers and AI
 ├── Dockerfile                  # Multi-stage production container build (Node + Python/uv)
 ├── docker-compose.yaml         # Development stack (PostgreSQL 16 + FastAPI/React app on :8009)
