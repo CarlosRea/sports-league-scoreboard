@@ -42,9 +42,19 @@ services:
       DEPLOYED_VERSION: ${DEPLOYED_VERSION:-0.1.0}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-sports-league-scoreboard}
       OTEL_SERVICE_VERSION: ${OTEL_SERVICE_VERSION:-0.1.0}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://scoreboard-otel-collector:4318}
     ports:
       - "${APP_PORT:-8009}:8009"
+    networks:
+      - default
+      - observability-network
 
 volumes:
   pgdata:
     name: scoreboard-pgdata
+
+networks:
+  default:
+  observability-network:
+    name: scoreboard-observability-net
+    external: true

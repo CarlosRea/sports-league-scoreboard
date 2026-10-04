@@ -202,6 +202,7 @@ stop-postgres:
 # Development Stack Orchestration
 compose-up:
 	@echo "--> Launching development stack with Docker Compose..."
+	@docker network inspect scoreboard-observability-net >/dev/null 2>&1 || docker network create scoreboard-observability-net >/dev/null 2>&1 || true
 	@docker compose up -d --build
 	@echo "Dev App is live at http://127.0.0.1:$(BACKEND_PORT)"
 
@@ -226,6 +227,7 @@ dev-ps: compose-ps-dev
 # Production Stack Orchestration (Second Independent Copy)
 compose-up-prod:
 	@echo "--> Launching production stack with Docker Compose (docker-compose.prod.yaml)..."
+	@docker network inspect scoreboard-observability-net >/dev/null 2>&1 || docker network create scoreboard-observability-net >/dev/null 2>&1 || true
 	@docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build
 	@echo "Production App is live at http://127.0.0.1:$(PROD_PORT)"
 

@@ -250,8 +250,14 @@ def setup_telemetry(app: FastAPI | None = None, engine: Any = None) -> dict[str,
         # Check for OTLP exporter endpoint
         otlp_endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT
         if otlp_endpoint:
-            logger.info("Configuring OTLP HTTP trace exporter to %s", otlp_endpoint)
-            otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+            traces_endpoint = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+            if not traces_endpoint:
+                if otlp_endpoint.endswith("/v1/traces"):
+                    traces_endpoint = otlp_endpoint
+                else:
+                    traces_endpoint = f"{otlp_endpoint.rstrip('/')}/v1/traces"
+            logger.info("Configuring OTLP HTTP trace exporter to %s", traces_endpoint)
+            otlp_exporter = OTLPSpanExporter(endpoint=traces_endpoint)
             _tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
         # Check for console trace exporter

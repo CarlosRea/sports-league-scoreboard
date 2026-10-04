@@ -15,7 +15,6 @@ The system maintains two completely independent infrastructure stacks running co
 +---------------------------------------------------------------+
 |                                                               |
 |  [ Development Environment ]         [ Production Environment]|
-|                                                               |
 |  Port 8009                           Port 8010                |
 |  +-----------------------+           +-----------------------+|
 |  |  scoreboard-app       |           |  scoreboard-prod-app  ||
@@ -29,10 +28,20 @@ The system maintains two completely independent infrastructure stacks running co
 |  |  scoreboard-db        |           |  scoreboard-prod-db   ||
 |  |  PostgreSQL 16        |           |  PostgreSQL 16        ||
 |  |  Port 5434            |           |  Port 5435            ||
-|  +-----------+-----------+           +-----------+-----------+|
-|              |                                   |            |
-|  Volume: scoreboard-pgdata           Volume: scoreboard-prod- |
-|                                              pgdata           |
+|  +-----------------------+           +-----------------------+|
+|              \                                   /            |
+|               \                                 /             |
+|          OTLP Traces & Metrics (HTTP :4318)                   |
+|                (scoreboard-observability-net)                 |
+|                              v                                |
+|  +---------------------------------------------------------+  |
+|  |     [ Independent Observability Stack (Compose) ]       |  |
+|  |  - OpenTelemetry Collector (:4317/:4318)                |  |
+|  |    -> Prometheus TSDB (:9090)                           |  |
+|  |    -> Grafana Tempo Tracing (:3200)                     |  |
+|  |    -> Grafana Loki Logs (:3100)                         |  |
+|  |    -> Grafana Visualizations & APM (:3000)              |  |
+|  +---------------------------------------------------------+  |
 +---------------------------------------------------------------+
 ```
 
@@ -204,6 +213,16 @@ make compose-down-obs   # Tear down observability stack
 make compose-logs-obs   # Tail container logs
 make compose-ps-obs     # View container status
 ```
+
+### Development & Production Telemetry Integration:
+
+Both the development stack (`scoreboard-app`) and production stack (`scoreboard-prod-app`) connect to the observability stack:
+1. **Network Bridging**: Both application stacks attach to the external bridge network `scoreboard-observability-net`.
+2. **OTLP Ingestion**: Applications stream traces and metrics to `http://scoreboard-otel-collector:4318`.
+3. **Environment & Version Tagging**:
+   - Development streams with `environment="development"` and `deployed_version`.
+   - Production streams with `environment="production"` and `deployed_version`.
+4. **Grafana Filtering**: The provisioned Grafana dashboard provides top-level dropdown filters for `Environment` and `Deployed Version` to isolate metrics and traces by environment.
 
 
 
