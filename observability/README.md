@@ -118,4 +118,13 @@ The backend automatically packages telemetry with:
    - **Loki**: Configured with derived trace IDs linking directly to Tempo spans.
 4. **Pre-configured Dashboard**:
    - Open **Dashboards** ➔ **Scoreboard Observability** ➔ **Sports League Scoreboard - Observability Overview**.
-   - Displays real-time OTel span ingestion rates, collector memory usage, active scrape targets, and application telemetry metadata.
+   - **Environment & Deployed Version Filtering**: Use the dashboard dropdown variables (`Environment` and `Deployed Version`) to isolate metrics by deployment environment (`development`, `production`, etc.) or release version.
+   - **Application Metrics Panels**:
+     - **Matches & Leagues Created** (Counter): Total matches and leagues created, with breakdown by entity type.
+     - **Active Live Matches** (Gauge): Real-time count of currently ongoing or active matches (`IN_PROGRESS`).
+     - **Score Updates Registered** (Counter): Live score and match event submissions received.
+     - **Failures in Score Update** (Counter): Validation errors and failed score submissions, with reason breakdown (`match_not_found`, `validation_error`, `payload_validation_error`, etc.).
+     - **Combined Application Metrics Time Series**: Unified multi-line chart comparing matches created, active matches, score updates, and failures over time.
+     - **Activity & Rates**: Operational rates for match creation and scorekeeper update traffic vs failure rate.
+   - **Pipeline Metrics**: OTel span ingestion rates, collector memory usage, active scrape targets, and healthy pipeline status.
+
