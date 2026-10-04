@@ -999,6 +999,33 @@ components:
             service.version: 20261004-213015-83242da
             environment: production
             deployed_version: 20261004-213015-83242da
+        application_metrics:
+          $ref: '#/components/schemas/ApplicationMetricsSummary'
+
+    ApplicationMetricsSummary:
+      type: object
+      required:
+        - matches_created
+        - active_live_matches
+        - score_updates_registered
+        - score_update_failures
+      properties:
+        matches_created:
+          type: integer
+          description: Total matches or leagues created
+          example: 12
+        active_live_matches:
+          type: integer
+          description: Currently ongoing or active live matches
+          example: 2
+        score_updates_registered:
+          type: integer
+          description: Total score and event updates submitted
+          example: 45
+        score_update_failures:
+          type: integer
+          description: Total failed score submissions or validation errors
+          example: 1
 
   responses:
     BadRequestError:

@@ -4,6 +4,7 @@ from app.auth.dependencies import require_admin
 from app.models.auth import User
 from app.models.league import CreateLeagueDto, League
 from app.store import store
+from app.telemetry import record_match_created
 
 router = APIRouter(tags=["Leagues"])
 
@@ -17,7 +18,9 @@ async def get_leagues():
 @router.post("/leagues", response_model=League, status_code=status.HTTP_201_CREATED)
 async def create_league(dto: CreateLeagueDto, admin_user: User = Depends(require_admin)):
     """Create and configure a new league. Requires Administrator role."""
-    return store.create_league(dto)
+    new_league = store.create_league(dto)
+    record_match_created(entity_type="league")
+    return new_league
 
 
 @router.get("/leagues/{leagueId}", response_model=League)

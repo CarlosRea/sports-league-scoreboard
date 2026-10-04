@@ -4,6 +4,10 @@ from app.auth.dependencies import require_scorekeeper_or_admin
 from app.models.auth import User
 from app.models.match import Match, UpdateScoreDto
 from app.store import store
+from app.telemetry import (
+    record_score_update_failure,
+    record_score_update_registered,
+)
 
 router = APIRouter(tags=["Scorekeeper"])
 
@@ -27,13 +31,20 @@ async def update_score(
 ):
     """Update live score, current period, and log event. Requires Scorekeeper or Admin role."""
     try:
-        return store.update_score(matchId, dto)
+        updated = store.update_score(matchId, dto)
+        record_score_update_registered(match_id=matchId)
+        return updated
     except KeyError:
+        record_score_update_failure(reason="match_not_found", match_id=matchId)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Match '{matchId}' not found."
         )
     except ValueError as e:
+        record_score_update_failure(reason="validation_error", match_id=matchId)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception:
+        record_score_update_failure(reason="unexpected_error", match_id=matchId)
+        raise
 
 
 @router.post("/matches/{matchId}/finish", response_model=Match)

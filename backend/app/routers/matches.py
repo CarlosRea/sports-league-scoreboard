@@ -4,6 +4,7 @@ from app.auth.dependencies import require_admin
 from app.models.auth import User
 from app.models.match import CreateMatchDto, Match
 from app.store import store
+from app.telemetry import record_match_created
 
 router = APIRouter(tags=["Matches"])
 
@@ -37,7 +38,9 @@ async def create_match(
         )
 
     try:
-        return store.create_match(leagueId, dto)
+        new_match = store.create_match(leagueId, dto)
+        record_match_created(entity_type="match")
+        return new_match
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

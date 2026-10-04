@@ -22,7 +22,11 @@ from app.routers import (
     telemetry_router,
 )
 from app.store.sql_store import store
-from app.telemetry import get_telemetry_metadata, setup_telemetry
+from app.telemetry import (
+    get_telemetry_metadata,
+    record_score_update_failure,
+    setup_telemetry,
+)
 
 
 @asynccontextmanager
@@ -61,6 +65,10 @@ app.add_middleware(
 # Exception handlers for unified error shape
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    if request.url.path.endswith("/score") or (
+        "/matches/" in request.url.path and "/score" in request.url.path
+    ):
+        record_score_update_failure(reason="payload_validation_error")
     details = [f"{err['loc'][-1]}: {err['msg']}" for err in exc.errors()]
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
