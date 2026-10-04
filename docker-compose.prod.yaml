@@ -29,7 +29,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: sports-scoreboard:prod
+    image: ${PROD_APP_IMAGE:-${APP_IMAGE:-sports-scoreboard:prod}}
     container_name: scoreboard-prod-app
     restart: unless-stopped
     depends_on:

@@ -29,6 +29,9 @@ htmlcov/
 !.env.*.example
 .env.local
 
+# Runtime deployment state
+.current-*
+
 
 # Databases
 *.db

@@ -271,88 +271,74 @@ The repository includes a production-grade CI/CD pipeline configured at [`.githu
 
 ```mermaid
 flowchart TD
-    Trigger["Push to main / Pull Request"] --> Tests
+    Trigger["Push to main"] --> Tests
     
-    subgraph Tests ["Parallel Unit & Quality Tests"]
-        BackendJob["Job: test-backend<br/>• Astral uv sync<br/>• Ruff lint check<br/>• 41 Pytest unit tests"]
-        FrontendJob["Job: test-frontend<br/>• Node 22 & npm ci<br/>• Oxlint & tsc typecheck<br/>• 5 Vitest unit tests<br/>• Vite production build"]
+    subgraph Tests ["Parallel Unit & Integration Gates"]
+        BackendJob["Job: test-backend<br/>• uv sync & ruff lint<br/>• Pytest unit tests"]
+        FrontendJob["Job: test-frontend<br/>• npm ci & oxlint<br/>• tsc typecheck & vitest<br/>• Vite production build"]
     end
     
-    BackendJob --> IntegrationJob["Job: integration-and-e2e<br/>• Build & start Docker Compose stack<br/>• Verify http://localhost:8009/health<br/>• Pytest integration tests (tests/test_api.py)<br/>• Playwright E2E tests (tests/e2e/)<br/>• Tear down compose stack"]
+    BackendJob --> IntegrationJob["Job: integration-and-e2e<br/>• Test Compose stack on runner<br/>• Health check verification<br/>• Integration & E2E tests"]
     FrontendJob --> IntegrationJob
     
-    IntegrationJob --> DeployJob["Job: deploy (CD)<br/>• Trigger: Push to main<br/>• Build tagged production container<br/>• Automated deployment rollout<br/>• Eliminates manual admin credentials"]
+    IntegrationJob --> BuildJob["Stage 1: Build & Push (GHCR)<br/>• Tag: YYYYMMDD-HHMMSS-shortsha<br/>• Push to ghcr.io using GITHUB_TOKEN"]
+    
+    BuildJob --> DeployDevJob["Stage 2: Deploy to Dev (Oracle Cloud)<br/>• SSH into Oracle Cloud server<br/>• Pull exact tagged image from ghcr.io<br/>• Update dev container (scoreboard-app)"]
+    
+    DeployDevJob -.->|"Manual Promotion (workflow_dispatch)"| PromoJob["Manual Promotion Workflow<br/>• Detect tag currently running in dev<br/>• Pull exact same image on Oracle Cloud<br/>• Deploy to production container (scoreboard-prod-app)"]
 ```
 
-### Automated Pipeline Stages:
-1. **Parallel Test Execution** (Runs concurrently for maximum speed):
-   - **`test-backend`**: Sets up Python 3.12 with `astral-sh/setup-uv@v5`, syncs dependencies, runs `ruff check`, and executes the Pytest unit test suite.
-   - **`test-frontend`**: Sets up Node 22, installs dependencies via `npm ci`, runs `oxlint`, executes TypeScript typechecking (`tsc --noEmit`), runs Vitest tests, and verifies the production bundle build (`npm run build`).
-2. **Container Build, Health Check & E2E Verification**:
-   - **`integration-and-e2e`** (`needs: [test-backend, test-frontend]`):
-     - Builds and boots the multi-service Docker Compose stack (`docker compose up -d --build`).
-     - Polls and validates that the container is healthy via `http://localhost:8009/health`.
-     - Executes integration tests and Playwright browser tests via `make e2e`.
-     - Automatically cleans up the compose stack (`docker compose down -v`).
-3. **Continuous Deployment (CD)**:
-   - **`deploy`** (`needs: [integration-and-e2e]`, triggers only on `push` to `main`):
-     - Builds and tags the release container image (`sports-scoreboard:${{ github.sha }}`).
-     - Deploys the application automatically to production.
-     - Replaces manual administrator credentials with automated, auditable CI/CD execution.
+### Two-Stage CI/CD Pipeline (`ci-cd.yml`):
+1. **Quality & Integration Gates**:
+   - **`test-backend`**: Runs in parallel; sets up Python 3.12 + Astral `uv`, executes `ruff check`, and runs unit tests.
+   - **`test-frontend`**: Runs in parallel; sets up Node 22, executes `oxlint`, `tsc --noEmit`, Vitest, and production Vite compilation.
+   - **`integration-and-e2e`**: Spins up the application stack on the GitHub Actions runner, confirms `/health`, and runs API integration + Playwright browser tests.
+2. **Stage 1 — Build & Push (`build`)**:
+   - Builds the production Docker image.
+   - Tags it using the strict **`YYYYMMDD-HHMMSS-shortsha`** timestamp pattern (e.g. `20261004-213015-83242da`).
+   - Authenticates to **GitHub Container Registry (`ghcr.io`)** with the built-in `GITHUB_TOKEN`.
+   - Pushes the tagged image (`ghcr.io/<owner>/<repo>:<tag>`), along with `:latest` and `:dev` tags.
+3. **Stage 2 — Deploy to Dev (`deploy-dev`)**:
+   - Establishes a secure SSH connection to the **Oracle Cloud server** via `appleboy/ssh-action@v1`.
+   - Authenticates with `ghcr.io` directly on the server.
+   - Pulls the exact tagged image from `ghcr.io`.
+   - Runs/updates the development container (`scoreboard-app`) on port `8009` with zero disruption to the dev database (`scoreboard-db`).
+   - Records the active tag to `.current-dev-tag` and `.current-dev-image`.
+   - Verifies the dev health endpoint (`http://localhost:8009/health`).
 
 ---
 
 ### 🚀 Manual Production Promotion Workflow (`promote-to-production.yml`)
 
-The repository includes a dedicated manual promotion workflow configured at [`.github/workflows/promote-to-production.yml`](./.github/workflows/promote-to-production.yml). It enables team members to manually promote any validated development version to the production infrastructure with configurable safety checks and comprehensive audit trails.
+The production deployment follows an immutable container promotion paradigm: **build once for dev, promote the exact same tested artifact to production**.
+
+The workflow is triggered manually via `workflow_dispatch`:
+- **Takes the tag currently running in dev** (inspects `.current-dev-image` or container runtime metadata).
+- **Pulls that exact same image** on the Oracle Cloud server from `ghcr.io`.
+- **Deploys it to the production container** (`scoreboard-prod-app` on port `8010`) using `docker-compose.prod.yaml`.
+- **Verifies production health** at `http://localhost:8010/health`.
 
 #### Triggering the Promotion Workflow:
 1. **GitHub Web UI**: Navigate to **Actions** ➔ **Promote Dev to Production** ➔ **Run workflow**.
 2. **GitHub CLI (`gh`)**:
    ```bash
    gh workflow run promote-to-production.yml \
-     -f source_ref=main \
-     -f release_version=v1.1.0 \
-     -f run_tests=true \
-     -f run_e2e=true \
-     -f dry_run=false \
-     -f promotion_notes="Promoting sprint release with scorekeeper updates"
+     -f promotion_notes="Promoting verified dev release to production"
    ```
 3. **Local CLI Equivalent**:
    ```bash
    make promote-to-prod
    ```
 
-#### Workflow Inputs & Options:
-| Input | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `source_ref` | string | `main` | Dev source branch, tag, or commit SHA to promote |
-| `release_version` | string | *(auto)* | Release version tag (e.g. `v1.1.0`; auto-generates `vYYYY.MM.DD-<sha>` if omitted) |
-| `run_tests` | boolean| `true` | Runs complete pre-promotion verification suite (Pytest, Vitest, linters, build) |
-| `run_e2e` | boolean| `true` | Executes Playwright browser E2E tests against live production on port 8010 |
-| `dry_run` | boolean| `false` | Builds release image and validates compose configuration without modifying live production |
-| `promotion_notes`| string| *(preset)*| Audit log reason / changelog notes recorded in `$GITHUB_STEP_SUMMARY` |
-
-#### Promotion Pipeline Execution:
+#### Promotion Architecture:
 ```mermaid
-flowchart TD
-    Dispatch["Manual Trigger: workflow_dispatch<br/>(Inputs: source_ref, release_version, dry_run)"] --> Gate
-    
-    subgraph Gate ["1. Pre-Promotion Verification Gate"]
-        CheckBackend["Backend: uv sync, ruff lint, pytest"]
-        CheckFrontend["Frontend: npm ci, oxlint, tsc, vitest, vite build"]
-    end
-    
-    Gate --> BuildStage["2. Build Production Release Image<br/>• Tag: sports-scoreboard:vX.Y.Z<br/>• Tag: sports-scoreboard:prod"]
-    
-    BuildStage --> DeployChoice{"Dry Run?"}
-    DeployChoice -- Yes --> AuditDry["Record Dry-Run Validation to Step Summary"]
-    DeployChoice -- No --> DeployProd["3. Deploy to Production Stack<br/>• docker compose -f docker-compose.prod.yaml up -d<br/>• Isolated volume: scoreboard-prod-pgdata<br/>• Isolated network: scoreboard-prod-network"]
-    
-    DeployProd --> VerifyProd["4. Post-Promotion Verification<br/>• Poll http://localhost:8010/health<br/>• Run API tests against :8010<br/>• Run Playwright E2E browser tests"]
-    
-    VerifyProd --> AuditSummary["5. Generate Audit Report in Step Summary<br/>• Actor, commit SHA, version tag, health status"]
+flowchart LR
+    DevRunning["Dev Container (:8009)<br/>Running: ghcr.io/...:20261004-213015-83242da"] -->|Detect Tag| Inspector["Inspect Running Dev Tag<br/>.current-dev-tag / container inspect"]
+    Inspector -->|Pull Exact Image| Pull["docker pull ghcr.io/...:20261004-213015-83242da"]
+    Pull -->|Deploy to Prod| ProdContainer["Production Container (:8010)<br/>scoreboard-prod-app"]
+    ProdContainer -->|Healthcheck| Verified["Verify http://localhost:8010/health"]
 ```
+
 
 
 ---

@@ -130,30 +130,51 @@ The repository provides automated verification covering both environments:
 
 ---
 
-## 6. Production Promotion Lifecycle
+## 6. Deployment & Production Promotion Lifecycle
 
-Promoting a development release to production is managed through two automated pathways:
+The system employs an immutable container promotion paradigm: **build once in CI, test and deploy to dev, and promote the exact tested artifact to production**.
 
-### 1. Manual GitHub Actions Promotion Workflow (`promote-to-production.yml`)
-Located at `.github/workflows/promote-to-production.yml`, this workflow provides a controlled promotion gate triggered via `workflow_dispatch`:
+### 1. Two-Stage Automated CI/CD Pipeline (`ci-cd.yml`)
+
+Located at `.github/workflows/ci-cd.yml`, every push to `main` executes:
+1. **Parallel Verification Gates**:
+   - Backend unit tests (`uv run pytest`) and Ruff linting.
+   - Frontend unit tests (`npm run test`), Oxlint, and TypeScript compilation.
+   - Isolated Compose integration tests and Playwright E2E testing on runner.
+2. **Stage 1 — Container Build & Push (`build`)**:
+   - Builds the production multi-stage Docker container.
+   - Generates an immutable timestamped tag adhering to the **`YYYYMMDD-HHMMSS-shortsha`** pattern (e.g., `20261004-213015-83242da`).
+   - Authenticates to **GitHub Container Registry (`ghcr.io`)** using the built-in `GITHUB_TOKEN`.
+   - Pushes `ghcr.io/<owner>/<repo>:<tag>`, along with `:latest` and `:dev`.
+3. **Stage 2 — Deploy to Dev (`deploy-dev`)**:
+   - Establishes an SSH connection to the **Oracle Cloud** host via `appleboy/ssh-action@v1`.
+   - Authenticates with `ghcr.io` directly on the server.
+   - Pulls the exact tagged image generated in Stage 1.
+   - Updates the development container (`scoreboard-app`) on port `8009` without modifying the dev database.
+   - Records the active deployment state in `.current-dev-tag` and `.current-dev-image`.
+   - Verifies the health endpoint (`http://localhost:8009/health`).
+
+### 2. Manual Production Promotion Workflow (`promote-to-production.yml`)
+
+Located at `.github/workflows/promote-to-production.yml`, this workflow provides a strictly controlled promotion gate triggered via `workflow_dispatch`:
 
 - **Inputs**:
-  - `source_ref`: Branch, tag, or commit SHA from dev to promote (default: `main`).
-  - `release_version`: Semantic release tag (e.g. `v1.2.0`; auto-generated if left blank).
-  - `run_tests`: Boolean flag to run backend Pytest, frontend Vitest, linters, and build prior to promotion.
-  - `run_e2e`: Boolean flag to run Playwright browser tests against the live production deployment.
-  - `dry_run`: Boolean flag to validate configuration and build images without modifying production.
-  - `promotion_notes`: Audit changelog summary stored in GitHub Step Summary.
-- **Lifecycle**:
-  1. **Pre-flight Gate**: Executes backend and frontend test suites and linters.
-  2. **Image Baking**: Builds multi-stage release image tagged as `sports-scoreboard:${version}` and `sports-scoreboard:prod`.
-  3. **Stack Deployment**: Executes `docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build`.
-  4. **Post-Deployment Gate**: Polls `/health` on port 8010, runs backend API integration tests, and executes Playwright E2E browser tests.
-  5. **Audit Logging**: Emits structured deployment report to `$GITHUB_STEP_SUMMARY`.
+  - `tag_override`: (Optional) Explicit GHCR image tag to deploy if manual pin is required.
+  - `promotion_notes`: Changelog notes or release rationale for audit logs.
+- **Promotion Mechanics**:
+  1. **Dev Tag Inspection**: Connects to the Oracle Cloud host over SSH and inspects the image currently running on `scoreboard-app` (or reads `.current-dev-image`).
+  2. **Exact Image Pull**: Executes `docker pull` on the host to fetch that exact same image from `ghcr.io`.
+  3. **Production Rollout**: Updates the production container (`scoreboard-prod-app` on port `8010`) using `docker-compose.prod.yaml` with `PROD_APP_IMAGE="$EXACT_IMAGE"`.
+  4. **State Persistence**: Records the promoted image tag in `.current-prod-tag`.
+  5. **Production Health Check**: Confirms health by polling `http://localhost:8010/health`.
+  6. **Audit Summary**: Publishes full promotion metadata to GitHub Step Summary.
 
-### 2. Local Promotion Command
+### 3. Local Promotion Command
+
+To promote the active development container to production directly on the server:
 ```bash
 make promote-to-prod
 ```
-Executes pre-promotion unit tests, triggers the production Docker Compose build and startup, and runs integration verification tests against `http://localhost:8010`.
+This targets the running dev container image, recreates `scoreboard-prod-app`, and verifies the production health check at `http://127.0.0.1:8010/health`.
+
 

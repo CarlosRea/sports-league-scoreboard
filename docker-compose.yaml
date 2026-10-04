@@ -26,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: sports-scoreboard:latest
+    image: ${APP_IMAGE:-sports-scoreboard:latest}
     container_name: scoreboard-app
     restart: unless-stopped
     depends_on:
@@ -38,7 +38,7 @@ services:
       PORT: 8009
       HOST: 0.0.0.0
     ports:
-      - "8009:8009"
+      - "${APP_PORT:-8009}:8009"
 
 volumes:
   pgdata:

@@ -3,35 +3,15 @@ name: Promote Dev to Production
 on:
   workflow_dispatch:
     inputs:
-      source_ref:
-        description: "Dev source branch, tag, or commit SHA to promote"
-        required: true
-        default: "main"
-        type: string
-      release_version:
-        description: "Release version tag (e.g., v1.1.0; leave blank for auto-generated tag)"
+      tag_override:
+        description: "Image tag to promote (leave blank to promote tag currently running in dev)"
         required: false
         default: ""
         type: string
-      run_tests:
-        description: "Run full verification suite (unit tests, linting, builds) before promoting"
-        required: true
-        default: true
-        type: boolean
-      run_e2e:
-        description: "Run Playwright E2E browser tests against production after deployment"
-        required: true
-        default: true
-        type: boolean
-      dry_run:
-        description: "Dry-run mode (build release image and validate configuration without deploying)"
-        required: false
-        default: false
-        type: boolean
       promotion_notes:
-        description: "Audit / changelog note for this promotion"
+        description: "Audit / changelog note for this production promotion"
         required: false
-        default: "Manual promotion from dev to production"
+        default: "Promoting verified dev version to production"
         type: string
 
 concurrency:
@@ -39,242 +19,145 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+  packages: read
 
 jobs:
-  # ============================================================================
-  # 1. Pre-Promotion Verification Gate (Tests & Quality Checks)
-  # ============================================================================
-  pre-promotion-verification:
-    name: Pre-Promotion Verification
+  promote:
+    name: Promote Dev Version to Production (Oracle Cloud)
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.run_tests != 'false' }}
     steps:
-      - name: Check out repository at source ref
-        uses: actions/checkout@v4
+      - name: SSH into Oracle Cloud & Promote Dev Image to Production
+        uses: appleboy/ssh-action@v1
+        env:
+          TAG_OVERRIDE: ${{ github.event.inputs.tag_override }}
+          PROMOTION_NOTES: ${{ github.event.inputs.promotion_notes }}
+          ACTOR: ${{ github.actor }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          ref: ${{ github.event.inputs.source_ref }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: TAG_OVERRIDE,PROMOTION_NOTES,ACTOR,GHCR_USER,GHCR_TOKEN
+          script: |
+            set -e
+            echo "=========================================================="
+            echo " Sports League Scoreboard - Promote Dev to Production"
+            echo " Host: Oracle Cloud Server"
+            echo " Actor: $ACTOR"
+            echo " Notes: $PROMOTION_NOTES"
+            echo "=========================================================="
 
-      # Backend Checks
-      - name: Set up Astral uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
+            cd ~/sports-league-scoreboard
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+            # ------------------------------------------------------------------
+            # 1. Detect Tag Currently Running in Dev
+            # ------------------------------------------------------------------
+            if [ -n "$TAG_OVERRIDE" ]; then
+              TARGET_TAG="$TAG_OVERRIDE"
+              echo "Using manual tag override: $TARGET_TAG"
+            elif [ -f .current-dev-tag ] && [ -s .current-dev-tag ]; then
+              TARGET_TAG=$(cat .current-dev-tag | tr -d '[:space:]')
+              echo "Detected dev tag from .current-dev-tag: $TARGET_TAG"
+            else
+              RUNNING_IMG=$(docker inspect scoreboard-app --format '{{.Config.Image}}' 2>/dev/null || echo "")
+              if [ -n "$RUNNING_IMG" ]; then
+                TARGET_TAG="${RUNNING_IMG##*:}"
+                echo "Detected dev tag from running container (scoreboard-app): $TARGET_TAG"
+              else
+                echo "ERROR: Unable to detect running dev container tag and no tag_override provided."
+                exit 1
+              fi
+            fi
 
-      - name: Install backend dependencies
-        run: |
-          cd backend
-          uv sync
+            # ------------------------------------------------------------------
+            # 2. Resolve Full Image URI
+            # ------------------------------------------------------------------
+            if [[ "$TARGET_TAG" == *"/"* ]]; then
+              EXACT_IMAGE="$TARGET_TAG"
+            elif [ -f .current-dev-image ] && [ -s .current-dev-image ]; then
+              EXACT_IMAGE=$(cat .current-dev-image | tr -d '[:space:]')
+            else
+              RUNNING_IMG=$(docker inspect scoreboard-app --format '{{.Config.Image}}' 2>/dev/null || echo "")
+              if [[ "$RUNNING_IMG" == *"/"* ]]; then
+                BASE_NAME="${RUNNING_IMG%:*}"
+                EXACT_IMAGE="${BASE_NAME}:${TARGET_TAG}"
+              else
+                EXACT_IMAGE="sports-scoreboard:${TARGET_TAG}"
+              fi
+            fi
 
-      - name: Lint backend code with Ruff
-        run: |
-          cd backend
-          uv run ruff check
+            echo "----------------------------------------------------------"
+            echo " Exact Image to Promote: $EXACT_IMAGE"
+            echo " Exact Tag:              $TARGET_TAG"
+            echo "----------------------------------------------------------"
 
-      - name: Run backend unit tests with Pytest
-        run: |
-          cd backend
-          uv run pytest
+            # ------------------------------------------------------------------
+            # 3. Pull That Exact Same Image on the Server
+            # ------------------------------------------------------------------
+            if [[ "$EXACT_IMAGE" == "ghcr.io"* ]]; then
+              echo "Authenticating with GitHub Container Registry (ghcr.io)..."
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+              echo "Pulling $EXACT_IMAGE from ghcr.io on the server..."
+              docker pull "$EXACT_IMAGE"
+            else
+              echo "Local/custom image reference ($EXACT_IMAGE), ensuring available locally..."
+              docker image inspect "$EXACT_IMAGE" > /dev/null 2>&1 || docker pull "$EXACT_IMAGE" || true
+            fi
 
-      # Frontend Checks
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+            # ------------------------------------------------------------------
+            # 4. Ensure Production Environment Configuration Exists
+            # ------------------------------------------------------------------
+            if [ ! -f .env.prod ]; then
+              echo "Initializing .env.prod from template..."
+              cp .env.prod.example .env.prod
+              RANDOM_JWT=$(openssl rand -hex 32)
+              sed -i "s/JWT_SECRET_KEY=.*/JWT_SECRET_KEY=${RANDOM_JWT}/" .env.prod
+            fi
 
-      - name: Install frontend dependencies
-        run: |
-          cd frontend
-          npm ci
+            # ------------------------------------------------------------------
+            # 5. Deploy to Production Container
+            # ------------------------------------------------------------------
+            echo "Deploying to production container (scoreboard-prod-app)..."
+            PROD_APP_IMAGE="$EXACT_IMAGE" docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --no-deps app
 
-      - name: Lint frontend code with Oxlint
-        run: |
-          cd frontend
-          npm run lint
+            # Save state records
+            echo "$TARGET_TAG" > .current-prod-tag
+            echo "$EXACT_IMAGE" > .current-prod-image
 
-      - name: Type check with TypeScript
-        run: |
-          cd frontend
-          npx tsc --noEmit
+            # ------------------------------------------------------------------
+            # 6. Verify Production Container Health
+            # ------------------------------------------------------------------
+            echo "Waiting for production backend to report healthy on port 8010..."
+            timeout 60s bash -c 'until curl -sf http://localhost:8010/health | grep -q "healthy"; do
+              echo "Waiting for production healthcheck response..."
+              sleep 2
+            done'
 
-      - name: Run frontend unit tests with Vitest
-        run: |
-          cd frontend
-          npm run test
+            echo "Production health check confirmed at http://localhost:8010/health!"
+            curl -i http://localhost:8010/health
 
-      - name: Verify production frontend build compiles cleanly
-        run: |
-          cd frontend
-          npm run build
+            echo "=========================================================="
+            echo " PROMOTION COMPLETE!"
+            echo " Image: $EXACT_IMAGE"
+            echo " Port:  8010"
+            echo " Status: Healthy"
+            echo "=========================================================="
 
-  # ============================================================================
-  # 2. Promote to Production Infrastructure
-  # ============================================================================
-  promote-to-production:
-    name: Promote to Production
-    runs-on: ubuntu-latest
-    needs: [pre-promotion-verification]
-    if: always() && (needs.pre-promotion-verification.result == 'success' || needs.pre-promotion-verification.result == 'skipped')
-    steps:
-      - name: Check out repository at source ref
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.source_ref }}
-          fetch-depth: 0
-
-      - name: Determine Release Version & Metadata
-        id: meta
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          CURRENT_DATE=$(date -u +'%Y.%m.%d')
-          
-          if [ -n "${{ github.event.inputs.release_version }}" ]; then
-            VERSION="${{ github.event.inputs.release_version }}"
-          else
-            VERSION="v${CURRENT_DATE}-${SHORT_SHA}"
-          fi
-          
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "Resolved Promotion Release Version: ${VERSION}"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Production Release Docker Images
-        run: |
-          echo "Building production container image tagged as sports-scoreboard:${{ steps.meta.outputs.version }}..."
-          docker build \
-            -t sports-scoreboard:${{ steps.meta.outputs.version }} \
-            -t sports-scoreboard:prod \
-            -t sports-scoreboard:latest \
-            .
-
-      - name: Validate Production Compose Configuration
-        run: |
-          echo "Validating docker-compose.prod.yaml syntax and configuration..."
-          docker compose -f docker-compose.prod.yaml config
-
-      # ------------------------------------------------------------------------
-      # Live Production Deployment (Skipped if Dry Run)
-      # ------------------------------------------------------------------------
-      - name: Deploy Production Infrastructure Stack
-        if: ${{ github.event.inputs.dry_run != 'true' }}
-        run: |
-          echo "Promoting dev build to production stack with docker-compose.prod.yaml..."
-          
-          # Initialize .env.prod with production secrets if not already created
-          if [ ! -f .env.prod ]; then
-            cp .env.prod.example .env.prod
-            RANDOM_JWT=$(openssl rand -hex 32)
-            sed -i "s/JWT_SECRET_KEY=.*/JWT_SECRET_KEY=${RANDOM_JWT}/" .env.prod
-          fi
-          
-          # Launch isolated production stack
-          docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build
-
-      - name: Verify Production Health Endpoint (http://localhost:8010/health)
-        if: ${{ github.event.inputs.dry_run != 'true' }}
-        run: |
-          echo "Waiting for production application to report healthy on port 8010..."
-          timeout 60s bash -c 'until curl -sf http://localhost:8010/health | grep -q "healthy"; do
-            echo "Waiting for healthcheck response from http://localhost:8010/health..."
-            sleep 2
-          done'
-          echo "✅ Production healthcheck succeeded!"
-          curl -i http://localhost:8010/health
-
-      - name: Set up Python for Production API Integration Tests
-        if: ${{ github.event.inputs.dry_run != 'true' }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Set up Astral uv for Integration Tests
-        if: ${{ github.event.inputs.dry_run != 'true' }}
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Install dependencies & execute API tests against Production
-        if: ${{ github.event.inputs.dry_run != 'true' }}
-        run: |
-          cd backend
-          uv sync
-          cd ..
-          echo "Running API integration tests against live production on port 8010..."
-          API_BASE_URL=http://localhost:8010 uv run --project backend pytest tests/test_api.py -v
-
-      - name: Execute Playwright E2E Tests against Production
-        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.run_e2e != 'false' }}
-        run: |
-          echo "Installing root dependencies and Playwright browser..."
-          npm ci
-          npx playwright install --with-deps chromium
-          echo "Running Playwright browser test suite against live production on port 8010..."
-          BASE_URL=http://localhost:8010 npx playwright test
-
-      - name: Upload Playwright Test Report on Failure
-        uses: actions/upload-artifact@v4
-        if: failure() && github.event.inputs.dry_run != 'true' && github.event.inputs.run_e2e != 'false'
-        with:
-          name: playwright-production-report
-          path: playwright-report/
-          retention-days: 7
-
-      - name: Record Git Release Tag
-        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.release_version != '' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.meta.outputs.version }}" -m "${{ github.event.inputs.promotion_notes }}" || true
-          git push origin "${{ steps.meta.outputs.version }}" || echo "Tag push skipped (requires permissions or existing tag)"
-
-      # ------------------------------------------------------------------------
-      # Promotion Audit Report in GitHub Step Summary
-      # ------------------------------------------------------------------------
-      - name: Generate Promotion Audit Summary
+      - name: Generate Promotion Summary
         if: always()
         run: |
-          STATUS="${{ job.status }}"
-          DRY_RUN="${{ github.event.inputs.dry_run }}"
-          
           echo "## 🚀 Production Promotion Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "> [!NOTE]" >> $GITHUB_STEP_SUMMARY
-            echo "> **Dry-Run Mode**: Release images were built and configuration validated, but no changes were applied to live production." >> $GITHUB_STEP_SUMMARY
-          elif [ "$STATUS" = "success" ]; then
-            echo "> [!IMPORTANT]" >> $GITHUB_STEP_SUMMARY
-            echo "> **Promotion Status**: ✅ Successfully promoted dev version to production!" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "> [!CAUTION]" >> $GITHUB_STEP_SUMMARY
-            echo "> **Promotion Status**: ❌ Production promotion encountered errors." >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Promotion Details" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Triggered By** | \`@${{ github.actor }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Source Ref (Dev)** | \`${{ github.event.inputs.source_ref }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit SHA** | \`${{ steps.meta.outputs.short_sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Promoted Version Tag** | \`${{ steps.meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Target Infrastructure** | \`docker-compose.prod.yaml\` (project: \`scoreboard-prod\`) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Production App Endpoint** | \`http://localhost:8010\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Production PostgreSQL Port** | \`localhost:5435\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Storage Isolation** | \`scoreboard-prod-pgdata\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Pre-Promotion Verification** | ${{ github.event.inputs.run_tests != 'false' && '✅ Enabled & Verified' || '⚠️ Skipped by user' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Post-Promotion E2E Tests** | ${{ (github.event.inputs.dry_run != 'true' && github.event.inputs.run_e2e != 'false') && '✅ Passed against :8010' || '⚠️ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Audit Notes** | *${{ github.event.inputs.promotion_notes }}* |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| **Status** | ${{ job.status == 'success' && '✅ Successfully Promoted' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Server** | Oracle Cloud Server |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Promoted By** | \`@${{ github.actor }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Source Environment** | Development (\`scoreboard-app\` on :8009) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Environment** | Production (\`scoreboard-prod-app\` on :8010) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Strategy** | Pulls exact tag currently running in dev |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Production Health** | Verified at \`http://localhost:8010/health\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Notes** | *${{ github.event.inputs.promotion_notes }}* |" >> $GITHUB_STEP_SUMMARY

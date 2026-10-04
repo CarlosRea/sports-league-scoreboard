@@ -240,19 +240,23 @@ prod-ps: compose-ps-prod
 
 test-prod:
 	@echo "--> Testing production health endpoint at http://127.0.0.1:$(PROD_PORT)/health..."
-	@curl -sf http://127.0.0.1:$(PROD_PORT)/health | grep -q "healthy" && echo "✅ Production healthcheck PASSED"
+	@timeout 30s bash -c 'until curl -sf http://127.0.0.1:$(PROD_PORT)/health | grep -q "healthy"; do sleep 1; done'
+	@echo "✅ Production healthcheck PASSED"
 	@echo "--> Running integration test suite against production endpoint..."
 	@API_BASE_URL=http://localhost:$(PROD_PORT) uv run --project backend pytest tests/test_api.py -v
 
 promote-to-prod:
 	@echo "--> Initiating promotion from dev to production..."
-	@echo "1. Running pre-promotion test verification..."
-	@$(MAKE) test
-	@echo "2. Deploying production stack with docker-compose.prod.yaml..."
-	@$(MAKE) compose-up-prod
-	@echo "3. Running post-promotion verification tests against production..."
+	@DEV_IMG=$$(docker inspect scoreboard-app --format '{{.Config.Image}}' 2>/dev/null || cat .current-dev-image 2>/dev/null || echo "sports-scoreboard:latest"); \
+	echo "1. Detected image currently running in dev: $$DEV_IMG"; \
+	echo "2. Deploying that exact image to the production container (scoreboard-prod-app)..."; \
+	PROD_APP_IMAGE="$$DEV_IMG" docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --no-deps app; \
+	echo "$$DEV_IMG" > .current-prod-image; \
+	echo "$${DEV_IMG##*:}" > .current-prod-tag
+	@echo "3. Running verification tests against production..."
 	@$(MAKE) test-prod
 	@echo "--> Promotion complete! Production is live and verified at http://127.0.0.1:$(PROD_PORT)"
+
 
 
 
