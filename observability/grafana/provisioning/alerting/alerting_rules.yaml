@@ -1,0 +1,68 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: 'scoreboard-canvas-alerts'
+    folder: 'Scoreboard Observability'
+    interval: 1m
+    rules:
+      - uid: 'canvas-component-creation-failures'
+        title: 'CanvasComponentCreationFailures'
+        condition: 'B'
+        for: 5m
+        labels:
+          severity: 'critical'
+          service: 'sports-league-scoreboard'
+          owner: 'sports-league-frontend'
+          environment: '{{ $labels.environment }}'
+          deployed_version: '{{ $labels.deployed_version }}'
+          dashboard_url: 'http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}'
+        annotations:
+          summary: 'Repeated canvas component-creation failures detected in {{ $labels.environment }}'
+          description: 'Service sports-league-scoreboard (version: {{ $labels.deployed_version }}) in {{ $labels.environment }} is experiencing repeated canvas component-creation failures (threshold: >5 failures in 5m). User impact: pitch canvas rendering failed repeatedly.'
+          service: 'sports-league-scoreboard'
+          owner: 'sports-league-frontend'
+          environment: '{{ $labels.environment }}'
+          deployed_version: '{{ $labels.deployed_version }}'
+          dashboard_url: 'http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}'
+          action: 'Inspect Loki frontend logs, verify browser canvas API compatibility, check commits in deployed version {{ $labels.deployed_version }}, and initiate rollback if regression confirmed.'
+          runbook_url: 'http://localhost:3000/d/scoreboard-observability-overview'
+        data:
+          - refId: 'A'
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: 'prometheus'
+            model:
+              editorMode: 'code'
+              expr: '(sum by (service, environment, deployed_version) (rate(scoreboard_canvas_component_creation_failures_total[5m])) > 0.05) or (sum by (service, environment, deployed_version) (rate(canvas_component_creation_failures_total[5m])) > 0.05) or (sum by (service, environment, deployed_version) (increase(scoreboard_canvas_component_creation_failures_total[5m])) > 5) or (sum by (service, environment, deployed_version) (increase(canvas_component_creation_failures_total[5m])) > 5)'
+              instant: true
+              range: false
+              refId: 'A'
+          - refId: 'B'
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: '__expr__'
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: 'gt'
+                  operator:
+                    type: 'and'
+                  query:
+                    params:
+                      - 'A'
+                  reducer:
+                    params: []
+                    type: 'last'
+                  type: 'query'
+              datasource:
+                name: 'Expression'
+                type: '__expr__'
+                uid: '__expr__'
+              expression: 'A'
+              refId: 'B'
+              type: 'threshold'

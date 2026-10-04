@@ -12,6 +12,9 @@ class ApplicationMetricsSummary(BaseModel):
     score_update_failures: int = Field(
         default=0, description="Total failed score submissions or validation errors"
     )
+    canvas_component_failures: int = Field(
+        default=0, description="Total canvas component-creation failures"
+    )
 
 
 class TelemetryMetadata(BaseModel):

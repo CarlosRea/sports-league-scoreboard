@@ -1,0 +1,110 @@
+# ==============================================================================
+# Prometheus Alerting Rules - Sports League Scoreboard
+# ==============================================================================
+
+groups:
+  - name: scoreboard_component_alerts
+    rules:
+      - alert: CanvasComponentCreationFailures
+        expr: |
+          (sum by (service, environment, deployed_version) (rate(scoreboard_canvas_component_creation_failures_total[5m])) > 0.05)
+          or
+          (sum by (service, environment, deployed_version) (rate(canvas_component_creation_failures_total[5m])) > 0.05)
+          or
+          (sum by (service, environment, deployed_version) (increase(scoreboard_canvas_component_creation_failures_total[5m])) > 5)
+          or
+          (sum by (service, environment, deployed_version) (increase(canvas_component_creation_failures_total[5m])) > 5)
+          or
+          (increase(scoreboard_canvas_component_creation_failures_total[5m]) > 5)
+          or
+          (increase(canvas_component_creation_failures_total[5m]) > 5)
+          or
+          (rate(scoreboard_canvas_component_creation_failures_total[5m]) > 0.05)
+          or
+          (rate(canvas_component_creation_failures_total[5m]) > 0.05)
+        for: 5m
+        labels:
+          severity: critical
+          service: sports-league-scoreboard
+          owner: sports-league-frontend
+          environment: "{{ $labels.environment }}"
+          deployed_version: "{{ $labels.deployed_version }}"
+          dashboard_url: "http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}"
+        annotations:
+          summary: "Repeated canvas component-creation failures detected in {{ $labels.environment }}"
+          description: "Service 'sports-league-scoreboard' (deployed_version: {{ $labels.deployed_version }}) in environment '{{ $labels.environment }}' is experiencing repeated canvas component-creation failures (threshold: >5 failures in 5m). Real user impact: end-users are unable to initialize or interact with the scoreboard pitch canvas. Owner: sports-league-frontend."
+          service: "sports-league-scoreboard"
+          environment: "{{ $labels.environment }}"
+          deployed_version: "{{ $labels.deployed_version }}"
+          owner: "sports-league-frontend"
+          dashboard_url: "http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}"
+          action: "1. Inspect frontend logs in Loki ({service=\"sports-league-scoreboard\"} |= \"canvas\"). 2. Review recent commits in deployed version {{ $labels.deployed_version }}. 3. Roll back to the previous deployment if component creation regression is confirmed."
+          runbook_url: "http://localhost:3000/d/scoreboard-observability-overview"
+
+      - alert: RepeatedCanvasComponentCreationFailures
+        expr: |
+          (sum by (service, environment, deployed_version) (increase(scoreboard_canvas_component_creation_failures_total[5m])) > 5)
+          or
+          (sum by (service, environment, deployed_version) (increase(canvas_component_creation_failures_total[5m])) > 5)
+          or
+          (sum by (service, environment, deployed_version) (rate(scoreboard_canvas_component_creation_failures_total[5m])) > 0.05)
+          or
+          (sum by (service, environment, deployed_version) (rate(canvas_component_creation_failures_total[5m])) > 0.05)
+          or
+          (increase(scoreboard_canvas_component_creation_failures_total[5m]) > 5)
+          or
+          (increase(canvas_component_creation_failures_total[5m]) > 5)
+          or
+          (rate(scoreboard_canvas_component_creation_failures_total[5m]) > 0.05)
+          or
+          (rate(canvas_component_creation_failures_total[5m]) > 0.05)
+        for: 5m
+        labels:
+          severity: critical
+          service: sports-league-scoreboard
+          owner: sports-league-frontend
+          environment: "{{ $labels.environment }}"
+          deployed_version: "{{ $labels.deployed_version }}"
+          dashboard_url: "http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}"
+        annotations:
+          summary: "Repeated canvas component-creation failures in {{ $labels.environment }}"
+          description: "Service 'sports-league-scoreboard' (deployed_version: {{ $labels.deployed_version }}) in environment '{{ $labels.environment }}' has exceeded the threshold of repeated canvas component-creation failures (>5 failures in 5m). Direct user impact: scorekeeper canvas component fails to render. Owner: sports-league-frontend."
+          service: "sports-league-scoreboard"
+          environment: "{{ $labels.environment }}"
+          deployed_version: "{{ $labels.deployed_version }}"
+          owner: "sports-league-frontend"
+          dashboard_url: "http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}"
+          action: "Check Loki error traces and roll back deployed version {{ $labels.deployed_version }} if canvas component creation failures persist."
+          runbook_url: "http://localhost:3000/d/scoreboard-observability-overview"
+
+      - alert: canvas_component_creation_failures
+        expr: |
+          (sum by (service, environment, deployed_version) (increase(scoreboard_canvas_component_creation_failures_total[5m])) > 5)
+          or
+          (sum by (service, environment, deployed_version) (increase(canvas_component_creation_failures_total[5m])) > 5)
+          or
+          (sum by (service, environment, deployed_version) (rate(scoreboard_canvas_component_creation_failures_total[5m])) > 0.05)
+          or
+          (sum by (service, environment, deployed_version) (rate(canvas_component_creation_failures_total[5m])) > 0.05)
+          or
+          (increase(scoreboard_canvas_component_creation_failures_total[5m]) > 5)
+          or
+          (increase(canvas_component_creation_failures_total[5m]) > 5)
+        for: 5m
+        labels:
+          severity: critical
+          service: sports-league-scoreboard
+          owner: sports-league-frontend
+          environment: "{{ $labels.environment }}"
+          deployed_version: "{{ $labels.deployed_version }}"
+          dashboard_url: "http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}"
+        annotations:
+          summary: "Canvas component creation failures in {{ $labels.environment }}"
+          description: "Service 'sports-league-scoreboard' (version {{ $labels.deployed_version }}) in {{ $labels.environment }} exceeded canvas creation failure threshold (>5 in 5m). Owner: sports-league-frontend."
+          service: "sports-league-scoreboard"
+          environment: "{{ $labels.environment }}"
+          deployed_version: "{{ $labels.deployed_version }}"
+          owner: "sports-league-frontend"
+          dashboard_url: "http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}"
+          action: "Inspect Loki logs and verify canvas component rendering."
+          runbook_url: "http://localhost:3000/d/scoreboard-observability-overview"

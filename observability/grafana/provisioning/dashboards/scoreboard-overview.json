@@ -232,7 +232,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 7 },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 7 },
       "id": 7,
       "options": {
         "colorMode": "value",
@@ -278,7 +278,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 7 },
+      "gridPos": { "h": 4, "w": 4, "x": 5, "y": 7 },
       "id": 8,
       "options": {
         "colorMode": "value",
@@ -323,7 +323,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 7 },
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 7 },
       "id": 9,
       "options": {
         "colorMode": "value",
@@ -369,7 +369,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 7 },
+      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 7 },
       "id": 10,
       "options": {
         "colorMode": "value",
@@ -395,6 +395,53 @@
         }
       ],
       "title": "Failures in Score Update",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Total canvas component-creation failures in selected environment. Alert triggers when failures exceed 5 in 5m.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 7 },
+      "id": 20,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.1.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(scoreboard_canvas_component_creation_failures_total{environment=~\"$environment\", deployed_version=~\"$deployed_version\"}) or sum(canvas_component_creation_failures_total{environment=~\"$environment\", deployed_version=~\"$deployed_version\"}) or vector(0)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Canvas Component Failures",
       "type": "stat"
     },
     {
@@ -435,6 +482,12 @@
             "matcher": { "id": "byName", "options": "Failures in Score Update" },
             "properties": [
               { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Canvas Component Failures" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }
             ]
           }
         ]
@@ -478,6 +531,13 @@
           "expr": "sum(scoreboard_score_update_failures_total{environment=~\"$environment\", deployed_version=~\"$deployed_version\"})",
           "legendFormat": "Failures in Score Update",
           "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "sum(scoreboard_canvas_component_creation_failures_total{environment=~\"$environment\", deployed_version=~\"$deployed_version\"}) or sum(canvas_component_creation_failures_total{environment=~\"$environment\", deployed_version=~\"$deployed_version\"})",
+          "legendFormat": "Canvas Component Failures",
+          "refId": "E"
         }
       ],
       "title": "Application Metrics (Matches, Active Matches & Score Updates)",

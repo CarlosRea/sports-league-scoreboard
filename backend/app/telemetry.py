@@ -37,11 +37,13 @@ _instrumented_engines: set[int] = set()
 _matches_created_counter: metrics.Counter | None = None
 _score_updates_counter: metrics.Counter | None = None
 _score_update_failures_counter: metrics.Counter | None = None
+_canvas_component_failures_counter: metrics.Counter | None = None
 
 # Internal tracking for quick metadata introspection
 _matches_created_count: int = 0
 _score_updates_registered_count: int = 0
 _score_update_failures_count: int = 0
+_canvas_component_failures_count: int = 0
 
 
 def get_telemetry_resource() -> Resource:
@@ -158,6 +160,28 @@ def record_score_update_failure(
         )
 
 
+def record_canvas_component_creation_failure(
+    reason: str = "component_render_failed", component_type: str = "canvas"
+) -> None:
+    """
+    Record repeated canvas component-creation failure.
+    Includes service, environment, and deployed_version in telemetry attributes.
+    """
+    global _canvas_component_failures_count, _canvas_component_failures_counter
+    _canvas_component_failures_count += 1
+    if _canvas_component_failures_counter:
+        _canvas_component_failures_counter.add(
+            1,
+            {
+                "service": settings.SERVICE_NAME,
+                "environment": settings.ENVIRONMENT,
+                "deployed_version": settings.DEPLOYED_VERSION,
+                "reason": reason,
+                "component_type": component_type,
+            },
+        )
+
+
 def get_application_metrics_summary() -> dict[str, int]:
     """Return dictionary summary of tracked application metrics."""
     return {
@@ -165,15 +189,21 @@ def get_application_metrics_summary() -> dict[str, int]:
         "active_live_matches": get_active_matches_count(),
         "score_updates_registered": _score_updates_registered_count,
         "score_update_failures": _score_update_failures_count,
+        "canvas_component_failures": _canvas_component_failures_count,
     }
 
 
 def reset_application_metrics() -> None:
     """Reset application metrics counters (useful for unit testing isolation)."""
-    global _matches_created_count, _score_updates_registered_count, _score_update_failures_count
+    global \
+        _matches_created_count, \
+        _score_updates_registered_count, \
+        _score_update_failures_count, \
+        _canvas_component_failures_count
     _matches_created_count = 0
     _score_updates_registered_count = 0
     _score_update_failures_count = 0
+    _canvas_component_failures_count = 0
 
 
 def get_telemetry_metadata() -> dict[str, Any]:
@@ -234,7 +264,11 @@ def setup_telemetry(app: FastAPI | None = None, engine: Any = None) -> dict[str,
     """
     global _in_memory_span_exporter, _in_memory_metric_reader
     global _tracer_provider, _meter_provider
-    global _matches_created_counter, _score_updates_counter, _score_update_failures_counter
+    global \
+        _matches_created_counter, \
+        _score_updates_counter, \
+        _score_update_failures_counter, \
+        _canvas_component_failures_counter
 
     if not settings.OTEL_ENABLED:
         logger.info("OpenTelemetry is disabled via configuration.")
@@ -305,6 +339,11 @@ def setup_telemetry(app: FastAPI | None = None, engine: Any = None) -> dict[str,
             name="score_update_failures_total",
             unit="{failures}",
             description="Total failed score submissions or validation errors",
+        )
+        _canvas_component_failures_counter = meter.create_counter(
+            name="canvas_component_creation_failures_total",
+            unit="{failures}",
+            description="Total canvas component-creation failures",
         )
         meter.create_observable_gauge(
             name="active_live_matches",

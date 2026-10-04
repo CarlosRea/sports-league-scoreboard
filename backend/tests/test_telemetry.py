@@ -15,6 +15,7 @@ from app.telemetry import (
     get_telemetry_metadata,
     get_telemetry_resource,
     get_tracer,
+    record_canvas_component_creation_failure,
     record_match_created,
     record_score_update_failure,
     record_score_update_registered,
@@ -322,9 +323,65 @@ def test_telemetry_endpoints_include_application_metrics(client):
     assert "active_live_matches" in app_metrics
     assert "score_updates_registered" in app_metrics
     assert "score_update_failures" in app_metrics
+    assert "canvas_component_failures" in app_metrics
 
     res_telemetry = client.get("/api/telemetry")
     assert res_telemetry.status_code == 200
     telemetry_data = res_telemetry.json()
     assert "application_metrics" in telemetry_data
     assert telemetry_data["application_metrics"]["matches_created"] >= 0
+    assert "canvas_component_failures" in telemetry_data["application_metrics"]
+
+
+def test_canvas_component_creation_failure_metrics():
+    """Verify that canvas component creation failures are recorded with required attributes."""
+    reset_application_metrics()
+
+    record_canvas_component_creation_failure(
+        reason="context_lost",
+        component_type="pitch_canvas",
+    )
+
+    summary = get_application_metrics_summary()
+    assert summary["canvas_component_failures"] == 1
+
+    reader = get_in_memory_metric_reader()
+    assert reader is not None
+
+    metrics_data = reader.get_metrics_data()
+    assert metrics_data is not None
+
+    found_dps = []
+    for rm in metrics_data.resource_metrics:
+        for sm in rm.scope_metrics:
+            for metric in sm.metrics:
+                if metric.name == "canvas_component_creation_failures_total":
+                    for dp in metric.data.data_points:
+                        found_dps.append(
+                            {"value": getattr(dp, "value", None), "attributes": dict(dp.attributes)}
+                        )
+
+    assert len(found_dps) > 0
+    dp = found_dps[-1]
+    assert dp["attributes"].get("service") == settings.SERVICE_NAME
+    assert dp["attributes"].get("environment") == settings.ENVIRONMENT
+    assert dp["attributes"].get("deployed_version") == settings.DEPLOYED_VERSION
+    assert dp["attributes"].get("reason") == "context_lost"
+    assert dp["attributes"].get("component_type") == "pitch_canvas"
+
+
+def test_canvas_failure_api_endpoint(client):
+    """Verify POST /api/telemetry/canvas-failure records failure metric."""
+    reset_application_metrics()
+
+    res = client.post(
+        "/api/telemetry/canvas-failure",
+        json={"reason": "webgl_init_failure", "component_type": "canvas"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "recorded"
+    assert data["reason"] == "webgl_init_failure"
+
+    summary = get_application_metrics_summary()
+    assert summary["canvas_component_failures"] == 1

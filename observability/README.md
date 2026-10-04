@@ -128,3 +128,38 @@ The backend automatically packages telemetry with:
      - **Activity & Rates**: Operational rates for match creation and scorekeeper update traffic vs failure rate.
    - **Pipeline Metrics**: OTel span ingestion rates, collector memory usage, active scrape targets, and healthy pipeline status.
 
+
+---
+
+## 6. Actionable Alerting: Canvas Component-Creation Failures
+
+The stack includes pre-configured, actionable alerting for repeated canvas component-creation failures in Prometheus and Grafana.
+
+### Alert Definition & Thresholds
+- **Alert Name**: `CanvasComponentCreationFailures` (also aliased as `RepeatedCanvasComponentCreationFailures` and `canvas_component_creation_failures`)
+- **Metric**: `scoreboard_canvas_component_creation_failures_total` / `canvas_component_creation_failures_total`
+- **Threshold**: Exceeding 5 failures within 5 minutes (`increase(...[5m]) > 5`) or sustained failure rate (`rate(...[5m]) > 0.05`).
+- **Evaluation Duration**: `for: 5m` (ensuring alert represents sustained, real user impact rather than transient network blips).
+- **Real User Impact**: End-users are unable to initialize or interact with the scorekeeper pitch canvas component.
+
+### Actionable Context Fields Included
+Every alert instance includes:
+1. `service`: `sports-league-scoreboard`
+2. `environment`: `{{ $labels.environment }}` (`development` or `production`)
+3. `deployed_version`: `{{ $labels.deployed_version }}` (e.g. `20261004-213015-83242da`)
+4. `owner`: `sports-league-frontend`
+5. `dashboard_url`: `http://localhost:3000/d/scoreboard-observability-overview?var-environment={{ $labels.environment }}&var-deployed_version={{ $labels.deployed_version }}`
+6. `action`: Step-by-step remediation plan (inspect Loki logs, inspect recent commits, initiate rollback).
+7. `runbook_url`: Direct link to operational runbook / dashboard.
+
+### Verification
+```bash
+# Validate Prometheus rule syntax with promtool
+docker exec scoreboard-prometheus promtool check rules /etc/prometheus/alerting_rules.yml
+
+# Query active Prometheus rules
+curl -s http://127.0.0.1:9090/api/v1/rules | jq '.data.groups[0].rules'
+
+# Query Grafana Alerting rules
+curl -u admin:admin -s http://127.0.0.1:3000/api/v1/provisioning/alert-rules | jq .
+```
