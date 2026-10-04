@@ -22,8 +22,13 @@ htmlcov/
 
 # Environment & Secrets
 .env
-.env.*.local
+.env.dev
+.env.prod
+.env.*
+!.env.example
+!.env.*.example
 .env.local
+
 
 # Databases
 *.db

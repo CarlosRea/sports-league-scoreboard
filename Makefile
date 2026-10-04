@@ -18,12 +18,26 @@ POSTGRES_PASSWORD := sdip
 POSTGRES_DB   := sdip
 POSTGRES_VOLUME := scoreboard-pgdata
 
+# Production Infrastructure settings (second, independent environment)
+PROD_PORT          := 8010
+PROD_CONTAINER_NAME:= scoreboard-prod-app
+PROD_IMAGE_NAME    := sports-scoreboard:prod
+PROD_POSTGRES_CONTAINER := scoreboard-prod-db
+PROD_POSTGRES_PORT := 5435
+PROD_POSTGRES_USER := scoreboard_prod_user
+PROD_POSTGRES_PASSWORD := scoreboard_prod_secure_password_2026!
+PROD_POSTGRES_DB   := scoreboard_prod
+PROD_POSTGRES_VOLUME := scoreboard-prod-pgdata
+
 .PHONY: help install install-backend install-frontend \
         run run-backend run-frontend dev \
         test test-backend test-frontend e2e \
         lint lint-backend lint-frontend \
         build-frontend build-docker run-docker stop-docker \
-        run-postgres stop-postgres compose-up compose-down clean
+        run-postgres stop-postgres compose-up compose-down clean \
+        compose-up-prod compose-down-prod compose-logs-prod compose-ps-prod \
+        compose-up-dev compose-down-dev compose-logs-dev compose-ps-dev \
+        prod-up prod-down dev-up dev-down test-prod
 
 # Default target: list commands
 help:
@@ -49,15 +63,26 @@ help:
 	@echo "   make lint-backend        Run ruff on backend"
 	@echo "   make lint-frontend       Run oxlint and tsc typecheck on frontend"
 	@echo ""
-	@echo " Docker & Production:"
+	@echo " Development Infrastructure (Docker Compose - Port $(BACKEND_PORT)):"
+	@echo "   make compose-up          Launch dev stack (App :$(BACKEND_PORT) + Postgres :$(POSTGRES_PORT))"
+	@echo "   make compose-down        Tear down dev stack"
+	@echo "   make compose-logs-dev    Follow logs for dev stack"
+	@echo "   make compose-ps-dev      Status of dev stack containers"
+	@echo ""
+	@echo " Production Infrastructure (Second Independent Stack - Port $(PROD_PORT)):"
+	@echo "   make compose-up-prod     Launch isolated production stack (App :$(PROD_PORT) + Postgres :$(PROD_POSTGRES_PORT))"
+	@echo "   make compose-down-prod   Tear down production stack"
+	@echo "   make compose-logs-prod   Follow logs for production stack"
+	@echo "   make compose-ps-prod     Status of production stack containers"
+	@echo "   make test-prod           Run health and API checks against production"
+	@echo ""
+	@echo " Standalone Containers:"
 	@echo "   make build-frontend      Compile frontend production assets to dist/"
 	@echo "   make build-docker        Build the multi-stage Docker image"
 	@echo "   make run-docker          Run the Docker container on port $(BACKEND_PORT)"
 	@echo "   make stop-docker         Stop and remove the running Docker container"
 	@echo "   make run-postgres        Start PostgreSQL container on port $(POSTGRES_PORT)"
 	@echo "   make stop-postgres       Stop PostgreSQL container"
-	@echo "   make compose-up          Launch complete stack (App + Postgres) with Docker Compose"
-	@echo "   make compose-down        Tear down Docker Compose stack"
 	@echo ""
 	@echo " Housekeeping:"
 	@echo "   make clean               Clean build artifacts, test caches, and db files"
@@ -166,14 +191,58 @@ stop-postgres:
 	@-docker stop $(POSTGRES_CONTAINER) 2>/dev/null || true
 	@-docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
 
+# Development Stack Orchestration
 compose-up:
-	@echo "--> Launching complete stack (App + PostgreSQL) with Docker Compose..."
+	@echo "--> Launching development stack with Docker Compose..."
 	@docker compose up -d --build
-	@echo "App is live at http://127.0.0.1:$(BACKEND_PORT)"
+	@echo "Dev App is live at http://127.0.0.1:$(BACKEND_PORT)"
 
 compose-down:
-	@echo "--> Stopping Docker Compose stack..."
+	@echo "--> Stopping development Docker Compose stack..."
 	@docker compose down
+
+compose-up-dev: compose-up
+compose-down-dev: compose-down
+dev-up: compose-up
+dev-down: compose-down
+
+compose-logs-dev:
+	@docker compose logs -f
+
+compose-ps-dev:
+	@docker compose ps
+
+dev-logs: compose-logs-dev
+dev-ps: compose-ps-dev
+
+# Production Stack Orchestration (Second Independent Copy)
+compose-up-prod:
+	@echo "--> Launching production stack with Docker Compose (docker-compose.prod.yaml)..."
+	@docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build
+	@echo "Production App is live at http://127.0.0.1:$(PROD_PORT)"
+
+compose-down-prod:
+	@echo "--> Stopping production Docker Compose stack..."
+	@docker compose -f docker-compose.prod.yaml --env-file .env.prod down
+
+prod-up: compose-up-prod
+prod-down: compose-down-prod
+
+compose-logs-prod:
+	@docker compose -f docker-compose.prod.yaml --env-file .env.prod logs -f
+
+compose-ps-prod:
+	@docker compose -f docker-compose.prod.yaml --env-file .env.prod ps
+
+prod-logs: compose-logs-prod
+prod-ps: compose-ps-prod
+
+test-prod:
+	@echo "--> Testing production health endpoint at http://127.0.0.1:$(PROD_PORT)/health..."
+	@curl -sf http://127.0.0.1:$(PROD_PORT)/health | grep -q "healthy" && echo "✅ Production healthcheck PASSED"
+	@echo "--> Running integration test suite against production endpoint..."
+	@API_BASE_URL=http://localhost:$(PROD_PORT) uv run --project backend pytest tests/test_api.py -v
+
 
 
 # ==============================================================================
