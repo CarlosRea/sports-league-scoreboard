@@ -34,56 +34,76 @@ The application features a contract-first architecture with a **React 19 + TypeS
 
 ---
 
+## 🏗️ Dual-Environment Infrastructure (Production & Development)
+
+The project supports two completely independent infrastructure stacks that can run concurrently on the same host with zero conflict:
+
+| Feature / Setting | Development Environment (Dev) | Production Environment (Prod) |
+| :--- | :--- | :--- |
+| **Purpose** | Local staging, testing, active coding | Stable release, live scorekeeping |
+| **Compose File** | `docker-compose.yaml` / `docker-compose.dev.yaml` | `docker-compose.prod.yaml` |
+| **Compose Project** | `sports-league-scoreboard` | `scoreboard-prod` |
+| **App URL** | [http://localhost:8009](http://localhost:8009) | [http://localhost:8010](http://localhost:8010) |
+| **App Container** | `scoreboard-app` | `scoreboard-prod-app` |
+| **App Image** | `sports-scoreboard:latest` | `sports-scoreboard:prod` |
+| **PostgreSQL Port** | `5434` (`localhost:5434`) | `5435` (`localhost:5435`) |
+| **PostgreSQL Container** | `scoreboard-db` | `scoreboard-prod-db` |
+| **Postgres Database / User** | `sdip` / `sdip` | `scoreboard_prod` / `scoreboard_prod_user` |
+| **Database Volume** | `scoreboard-pgdata` | `scoreboard-prod-pgdata` (isolated storage) |
+| **Docker Network** | `sports-league-scoreboard_default` | `scoreboard-prod-network` (isolated bridge) |
+| **JWT Secrets** | Dedicated dev secret (`.env.dev`) | Dedicated prod secret (`.env.prod`) |
+| **Restart Policy** | `unless-stopped` | `unless-stopped` (with log rotation) |
+| **Health Checks** | Postgres `pg_isready` | Postgres `pg_isready` + App `/health` |
+
+---
+
 ## 🚀 Quick Start
 
-### Option 1: Run Full Stack with PostgreSQL (Recommended)
+### 1. Production Environment (Second Independent Stack)
 
-Run the complete production-grade stack (**PostgreSQL 16** + **FastAPI Backend** + **React Frontend**) with Docker Compose:
+To build and launch the production stack:
 
 ```bash
-# Launch PostgreSQL and Application containers
+# Launch production stack on port 8010 (App) and 5435 (PostgreSQL)
+make compose-up-prod
+# Or directly: docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --build
+```
+
+- **Production App**: Open [http://localhost:8010](http://localhost:8010)
+- **API Docs**: Open [http://localhost:8010/docs](http://localhost:8010/docs)
+- **Health Check**: Open [http://localhost:8010/health](http://localhost:8010/health)
+- **PostgreSQL Port**: `localhost:5435` (User: `scoreboard_prod_user`, DB: `scoreboard_prod`)
+
+To check health and run automated integration tests against production:
+```bash
+make test-prod
+```
+
+To stop the production stack:
+```bash
+make compose-down-prod
+```
+
+### 2. Development Environment (Existing Stack)
+
+To run the development stack:
+
+```bash
+# Launch dev stack on port 8009 (App) and 5434 (PostgreSQL)
 make compose-up
 # Or directly: docker compose up -d --build
 ```
 
-- **Web Application**: Open [http://localhost:8009](http://localhost:8009)
-- **API Documentation**: Open [http://localhost:8009/docs](http://localhost:8009/docs) (Swagger UI) or [http://localhost:8009/redoc](http://localhost:8009/redoc) (ReDoc)
-- **PostgreSQL Host Port**: `localhost:5434` (User: `sdip`, Password: `sdip`, Database: `sdip`)
+- **Dev App**: Open [http://localhost:8009](http://localhost:8009)
+- **API Docs**: Open [http://localhost:8009/docs](http://localhost:8009/docs)
+- **Health Check**: Open [http://localhost:8009/health](http://localhost:8009/health)
+- **PostgreSQL Port**: `localhost:5434` (User: `sdip`, DB: `sdip`)
 
-To stop the Docker Compose stack:
+To stop the development stack:
 ```bash
 make compose-down
-# Or directly: docker compose down
 ```
 
-#### Running PostgreSQL Standalone via Docker
-
-You can also start PostgreSQL and the app container individually on a Docker network:
-
-```bash
-# 1. Create network
-docker network create scoreboard-network || true
-
-# 2. Start PostgreSQL 16
-docker run -d \
-  --name scoreboard-db \
-  --network scoreboard-network \
-  -e POSTGRES_USER=sdip \
-  -e POSTGRES_PASSWORD=sdip \
-  -e POSTGRES_DB=sdip \
-  -p 5434:5432 \
-  -v scoreboard-pgdata:/var/lib/postgresql/data \
-  postgres:16-alpine
-
-# 3. Build & run App container connected to Postgres
-docker build -t sports-scoreboard:latest .
-
-docker run -d --rm -p 8009:8009 \
-  --network scoreboard-network \
-  -e DATABASE_URL=postgresql://sdip:sdip@scoreboard-db:5432/sdip \
-  -e PORT=8009 \
-  --name sports-scoreboard sports-scoreboard:latest
-```
 
 ---
 
@@ -186,8 +206,13 @@ The backend automatically creates an initial SQLite database (`scoreboard.db`) s
 | `make lint` | Run backend (`ruff`) and frontend (`oxlint` + `tsc`) linting |
 | `make build-frontend`| Compile production React assets into `frontend/dist/` |
 | `make build-docker` | Build production multi-stage Docker image |
-| `make compose-up` | Launch complete stack (App + PostgreSQL) with Docker Compose |
-| `make compose-down` | Stop and remove Docker Compose containers |
+| `make compose-up` | Launch development stack (App :8009 + PostgreSQL :5434) |
+| `make compose-down` | Stop development stack |
+| `make compose-up-prod` | Launch isolated production stack (App :8010 + PostgreSQL :5435) |
+| `make compose-down-prod`| Stop and remove production stack |
+| `make compose-logs-prod`| Follow production container logs |
+| `make compose-ps-prod` | View production container status |
+| `make test-prod` | Verify health and run API integration tests against production |
 | `make e2e` | Run integration (pytest) and Playwright E2E tests against running stack |
 | `make clean` | Clean up build outputs, caches, and test artifacts |
 
@@ -302,7 +327,11 @@ sports-league-scoreboard/
 │       └── ci-cd.yml           # GitHub Actions CI/CD pipeline definition
 ├── AGENTS.md                   # Operating standards & guidelines for developers and AI
 ├── Dockerfile                  # Multi-stage production container build (Node + Python/uv)
-├── docker-compose.yaml         # Multi-service stack (PostgreSQL 16 + FastAPI/React app)
+├── docker-compose.yaml         # Development stack (PostgreSQL 16 + FastAPI/React app on :8009)
+├── docker-compose.dev.yaml     # Explicit development compose stack specification
+├── docker-compose.prod.yaml    # Production stack (Second independent copy on :8010 & :5435)
+├── .env.dev.example            # Development environment configuration template
+├── .env.prod.example           # Production environment configuration template
 ├── .dockerignore               # Excludes virtual environments, caches, and secrets
 ├── Makefile                    # Unified development, testing, and Docker commands
 ├── openapi.yaml                # OpenAPI 3.0 contract specification
@@ -314,6 +343,7 @@ sports-league-scoreboard/
 │   └── ai-usage-report.md      # Comprehensive AI tools and prompts usage report
 ├── tests/                      # System integration & E2E test suite
 │   ├── test_api.py             # Backend API & health integration tests
+│   ├── test_environment_isolation.py # Automated Dev vs Prod environment isolation tests
 │   └── e2e/
 │       └── test_scoreboard.spec.ts # Playwright browser E2E test suite
 ├── frontend/                   # React 19 + TypeScript + Vite web application
