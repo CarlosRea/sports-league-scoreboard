@@ -10,6 +10,7 @@ groups:
         title: 'CanvasComponentCreationFailures'
         condition: 'B'
         for: 5m
+        noDataState: 'OK'
         labels:
           severity: 'critical'
           service: 'sports-league-scoreboard'
