@@ -35,6 +35,16 @@ logging.basicConfig(
 logger = logging.getLogger("on-call-engineer")
 
 
+# System prompt for headless coding agent
+HEADLESS_AGENT_SYSTEM_PROMPT = """You are the on-call engineer for this repository. An alert just fired.
+
+Investigate the root cause. Read the code and reproduce the failure.
+If you find a real bug, make the smallest correction, run the backend tests, and commit the fix with a clear message.
+
+If the alert is a false positive, explain why and do not change the code."""
+SYSTEM_PROMPT = HEADLESS_AGENT_SYSTEM_PROMPT
+
+
 @dataclass
 class AlertDetails:
     """Normalized alert model containing all required observability metadata."""
@@ -200,11 +210,9 @@ class AlertParser:
 def build_agent_prompt(alert: AlertDetails) -> str:
     """
     Construct a comprehensive, actionable prompt for the headless coding agent.
-    Includes all alert context: service, environment, deployed version, owner,
-    dashboard URL, summary, description, and remediation guidelines.
+    Includes the required system prompt and alert context.
     """
-    prompt = f"""[ACTION REQUIRED: ON-CALL CODING AGENT INCIDENT DISPATCH]
-An observability alert is currently FIRING for the Sports League Scoreboard service.
+    prompt = f"""{HEADLESS_AGENT_SYSTEM_PROMPT}
 
 ================================================================================
 ALERT CONTEXT & METADATA
@@ -231,18 +239,6 @@ Detailed Description:
 
 Recommended Remediation Action:
 {alert.action}
-
-================================================================================
-INSTRUCTIONS FOR HEADLESS CODING AGENT
-================================================================================
-You are the automated On-Call Coding Agent.
-1. Inspect the service '{alert.service}' in environment '{alert.environment}'.
-2. Review recent code changes associated with deployed version '{alert.deployed_version}'.
-3. If this alert represents repeated canvas component-creation failures:
-   - Examine frontend canvas initialization, error boundaries, and WebGL/2D fallback logic.
-   - Verify backend error logging in telemetry and /api/telemetry endpoints.
-4. Implement the required bugfix, component fallback, or rollback procedure.
-5. Execute unit tests and verification builds to ensure the fix is validated.
 """
     return prompt.strip()
 
@@ -309,6 +305,7 @@ class HeadlessAgentDispatcher:
         # Save incident record
         incident_record = {
             "dispatched_at": datetime.now(UTC).isoformat(),
+            "system_prompt": HEADLESS_AGENT_SYSTEM_PROMPT,
             "alert": alert.to_dict(),
             "prompt": prompt,
             "agent_command": self.agent_cmd,
@@ -321,6 +318,7 @@ class HeadlessAgentDispatcher:
         sub_env = os.environ.copy()
         sub_env.update(
             {
+                "ALERT_SYSTEM_PROMPT": HEADLESS_AGENT_SYSTEM_PROMPT,
                 "ALERT_NAME": alert.alertname,
                 "ALERT_SERVICE": alert.service,
                 "ALERT_ENVIRONMENT": alert.environment,

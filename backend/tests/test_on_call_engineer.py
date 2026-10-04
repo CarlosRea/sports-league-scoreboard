@@ -13,6 +13,7 @@ if str(on_call_dir) not in sys.path:
     sys.path.insert(0, str(on_call_dir))
 
 from poll_alerts import (  # noqa: E402
+    HEADLESS_AGENT_SYSTEM_PROMPT,
     AlertDetails,
     HeadlessAgentDispatcher,
     IncidentTracker,
@@ -22,7 +23,7 @@ from poll_alerts import (  # noqa: E402
 
 
 def test_on_call_engineer_prompt_generation():
-    """Verify on-call engineer prompt builder contains all critical incident context."""
+    """Verify on-call engineer prompt builder contains all critical incident context and system prompt."""
     alert = AlertDetails(
         alertname="CanvasComponentCreationFailures",
         service="sports-league-scoreboard",
@@ -36,6 +37,17 @@ def test_on_call_engineer_prompt_generation():
         action="Rollback deployment",
     )
     prompt = build_agent_prompt(alert)
+
+    # Required verbatim system prompt
+    assert HEADLESS_AGENT_SYSTEM_PROMPT in prompt
+    assert "You are the on-call engineer for this repository. An alert just fired." in prompt
+    assert "Investigate the root cause. Read the code and reproduce the failure." in prompt
+    assert (
+        "If you find a real bug, make the smallest correction, run the backend tests, and commit the fix with a clear message."
+        in prompt
+    )
+    assert "If the alert is a false positive, explain why and do not change the code." in prompt
+
     assert alert.service in prompt
     assert alert.environment in prompt
     assert alert.deployed_version in prompt

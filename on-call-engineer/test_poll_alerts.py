@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from poll_alerts import (
+    HEADLESS_AGENT_SYSTEM_PROMPT,
     AlertDetails,
     AlertParser,
     HeadlessAgentDispatcher,
@@ -144,10 +145,20 @@ def test_parse_grafana_alerts_api():
 
 
 def test_build_agent_prompt(sample_firing_alert: AlertDetails):
-    """Verify that the generated prompt includes all required alert context."""
+    """Verify that the generated prompt includes the required system prompt and alert context."""
     prompt = build_agent_prompt(sample_firing_alert)
 
-    # Required fields must be in prompt
+    # Required system prompt must be present verbatim
+    assert HEADLESS_AGENT_SYSTEM_PROMPT in prompt
+    assert "You are the on-call engineer for this repository. An alert just fired." in prompt
+    assert "Investigate the root cause. Read the code and reproduce the failure." in prompt
+    assert (
+        "If you find a real bug, make the smallest correction, run the backend tests, and commit the fix with a clear message."
+        in prompt
+    )
+    assert "If the alert is a false positive, explain why and do not change the code." in prompt
+
+    # Required alert metadata fields must be in prompt
     assert "CanvasComponentCreationFailures" in prompt
     assert "sports-league-scoreboard" in prompt
     assert "production" in prompt
@@ -155,8 +166,6 @@ def test_build_agent_prompt(sample_firing_alert: AlertDetails):
     assert "sports-league-frontend" in prompt
     assert sample_firing_alert.dashboard_url in prompt
     assert "CRITICAL" in prompt
-    assert "Loki" in prompt
-    assert "INSTRUCTIONS FOR HEADLESS CODING AGENT" in prompt
 
 
 def test_headless_agent_dispatcher_execution(tmp_path: Path, sample_firing_alert: AlertDetails):

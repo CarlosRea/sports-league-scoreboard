@@ -47,8 +47,21 @@ It polls the observability alert API (Prometheus Alertmanager / Prometheus / Gra
 
 ---
 
-## 2. Alert Metadata Passed to Headless Coding Agent
+## 2. Headless Agent System Prompt & Alert Metadata
 
+### Internal System Prompt
+The script automatically prefixes every dispatched prompt with the required system prompt for the on-call coding agent:
+
+```text
+You are the on-call engineer for this repository. An alert just fired.
+
+Investigate the root cause. Read the code and reproduce the failure.
+If you find a real bug, make the smallest correction, run the backend tests, and commit the fix with a clear message.
+
+If the alert is a false positive, explain why and do not change the code.
+```
+
+### Alert Metadata Context
 Every dispatched alert delivers full operational context to the agent:
 
 | Metadata Field | Value Source / Description |
@@ -64,7 +77,7 @@ Every dispatched alert delivers full operational context to the agent:
 | **`Summary & Description`** | Impact statement and threshold breach details |
 | **`Action`** | Recommended remediation steps |
 
-In addition to the formatted prompt text, the agent subprocess receives these fields as environment variables (`ALERT_NAME`, `ALERT_SERVICE`, `ALERT_ENVIRONMENT`, `ALERT_DEPLOYED_VERSION`, `ALERT_DASHBOARD_URL`, `ALERT_OWNER`, `ALERT_PAYLOAD_JSON`, `ALERT_INCIDENT_FILE`).
+In addition to the formatted prompt text, the agent subprocess receives these fields as environment variables (`ALERT_SYSTEM_PROMPT`, `ALERT_NAME`, `ALERT_SERVICE`, `ALERT_ENVIRONMENT`, `ALERT_DEPLOYED_VERSION`, `ALERT_DASHBOARD_URL`, `ALERT_OWNER`, `ALERT_PAYLOAD_JSON`, `ALERT_INCIDENT_FILE`).
 
 ---
 
