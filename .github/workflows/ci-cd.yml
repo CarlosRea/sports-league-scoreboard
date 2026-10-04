@@ -180,12 +180,18 @@ jobs:
           echo "Building production release image for commit ${{ github.sha }}..."
           docker build -t sports-scoreboard:${{ github.sha }} -t sports-scoreboard:latest .
 
-      - name: Execute automated deployment
+      - name: Deploy to production infrastructure
         run: |
-          echo "Deploying sports-scoreboard (commit: ${{ github.sha }}) to production..."
+          echo "Deploying sports-scoreboard (commit: ${{ github.sha }}) to production infrastructure..."
           echo "Release Version: $(git describe --tags --always 2>/dev/null || echo ${{ github.sha }})"
-          echo "Deployment target: production"
-          echo "Automated CD pipeline replacing manual admin user deployment."
+          echo "Deployment target: production stack (docker-compose.prod.yaml)"
+          docker compose -f docker-compose.prod.yaml up -d --build
+          echo "Waiting for production backend to become healthy on http://localhost:8010/health..."
+          timeout 60s bash -c 'until curl -sf http://localhost:8010/health | grep -q "healthy"; do
+            echo "Waiting for production healthcheck response..."
+            sleep 2
+          done'
+          echo "Production deployment verified successfully at http://localhost:8010/health"
 
       - name: Summary of Deployment
         run: |
@@ -195,6 +201,8 @@ jobs:
           echo "- **Ref**: \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
           echo "- **Backend & Frontend Tests**: ✅ Passed in parallel" >> $GITHUB_STEP_SUMMARY
-          echo "- **Docker Compose & Health Check**: ✅ Verified at \`http://localhost:8009/health\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Development Stack Verification**: ✅ Verified at \`http://localhost:8009/health\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Production Infrastructure**: ✅ Verified at \`http://localhost:8010/health\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Integration & E2E Tests**: ✅ Passed against live stack" >> $GITHUB_STEP_SUMMARY
-          echo "- **Deployment Security**: ✅ Automated via CI/CD (manual admin credentials removed)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment Isolation**: ✅ Production and Dev run as independent stacks" >> $GITHUB_STEP_SUMMARY
+
