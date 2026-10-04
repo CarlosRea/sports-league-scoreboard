@@ -56,3 +56,7 @@ Thumbs.db
 # Test outputs
 test-results/
 playwright-report/
+
+# On-call runtime incidents
+on-call-engineer/incidents/*.json
+!on-call-engineer/incidents/.gitkeep
