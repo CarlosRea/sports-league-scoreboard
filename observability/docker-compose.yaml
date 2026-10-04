@@ -1,0 +1,116 @@
+name: scoreboard-observability
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. OpenTelemetry Collector (Contrib)
+  # ----------------------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: scoreboard-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      # OTLP receivers
+      - "127.0.0.1:4317:4317"     # OTLP gRPC receiver
+      - "127.0.0.1:4318:4318"     # OTLP HTTP receiver (backend default)
+      # Operational & Prometheus export endpoints
+      - "127.0.0.1:8888:8888"     # Collector internal telemetry
+      - "127.0.0.1:8889:8889"     # Prometheus metrics exporter
+      - "127.0.0.1:13133:13133"   # Health check extension
+    depends_on:
+      - tempo
+      - loki
+    networks:
+      - observability-network
+
+  # ----------------------------------------------------------------------------
+  # 2. Grafana Tempo (Distributed Tracing Storage)
+  # ----------------------------------------------------------------------------
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: scoreboard-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"     # Tempo HTTP query endpoint
+    networks:
+      - observability-network
+
+  # ----------------------------------------------------------------------------
+  # 3. Prometheus (Metrics Time Series Database)
+  # ----------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: scoreboard-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"     # Prometheus UI & API
+    networks:
+      - observability-network
+
+  # ----------------------------------------------------------------------------
+  # 4. Grafana Loki (Log Aggregation Engine)
+  # ----------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:latest
+    container_name: scoreboard-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"     # Loki HTTP endpoint
+    networks:
+      - observability-network
+
+  # ----------------------------------------------------------------------------
+  # 5. Grafana (Unified Observability Dashboard & Visualization)
+  # ----------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: scoreboard-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"     # Grafana Web UI
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - observability-network
+
+networks:
+  observability-network:
+    name: scoreboard-observability-net
+    driver: bridge
+
+volumes:
+  prometheus-data:
+    name: scoreboard-prometheus-data
+  tempo-data:
+    name: scoreboard-tempo-data
+  loki-data:
+    name: scoreboard-loki-data
+  grafana-data:
+    name: scoreboard-grafana-data

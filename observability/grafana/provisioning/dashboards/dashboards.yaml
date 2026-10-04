@@ -1,0 +1,15 @@
+# ==============================================================================
+# Grafana Dashboards Provisioning Provider
+# ==============================================================================
+apiVersion: 1
+
+providers:
+  - name: 'Scoreboard Observability Dashboards'
+    orgId: 1
+    folder: 'Scoreboard Observability'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

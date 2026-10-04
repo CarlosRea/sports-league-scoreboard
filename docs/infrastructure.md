@@ -177,4 +177,33 @@ make promote-to-prod
 ```
 This targets the running dev container image, recreates `scoreboard-prod-app`, and verifies the production health check at `http://127.0.0.1:8010/health`.
 
+---
+
+## 7. Observability Stack Architecture (`scoreboard-observability`)
+
+Running alongside the application stacks is an independent observability project configured in `observability/docker-compose.yaml`:
+
+- **OpenTelemetry Collector (`scoreboard-otel-collector`)**:
+  - Ingestion: OTLP gRPC (`127.0.0.1:4317`) and OTLP HTTP (`127.0.0.1:4318`)
+  - Forwarding: Traces ➔ Tempo, Metrics ➔ Prometheus, Logs ➔ Loki
+  - Metrics Export: `127.0.0.1:8889`
+  - Health check: `127.0.0.1:13133`
+- **Grafana Tempo (`scoreboard-tempo`)**:
+  - Distributed trace storage and query engine (`127.0.0.1:3200`)
+- **Prometheus (`scoreboard-prometheus`)**:
+  - Metrics time series database (`127.0.0.1:9090`) scraping collector metrics
+- **Grafana Loki (`scoreboard-loki`)**:
+  - Structured log aggregation engine (`127.0.0.1:3100`)
+- **Grafana (`scoreboard-grafana`)**:
+  - Visualization and APM dashboard (`127.0.0.1:3000`) pre-provisioned with Tempo, Prometheus, and Loki
+
+### Management Commands:
+```bash
+make compose-up-obs     # Launch observability stack
+make compose-down-obs   # Tear down observability stack
+make compose-logs-obs   # Tail container logs
+make compose-ps-obs     # View container status
+```
+
+
 

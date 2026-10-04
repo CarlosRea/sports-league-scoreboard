@@ -213,6 +213,11 @@ The backend automatically creates an initial SQLite database (`scoreboard.db`) s
 | `make compose-logs-prod`| Follow production container logs |
 | `make compose-ps-prod` | View production container status |
 | `make test-prod` | Verify health and run API integration tests against production |
+| `make promote-to-prod` | Promote dev to production with automated tests & deployment |
+| `make compose-up-obs`  | Launch observability stack (Grafana :3000, Prometheus :9090, Tempo :3200, Loki :3100, OTel :4318) |
+| `make compose-down-obs`| Stop and tear down observability stack |
+| `make compose-logs-obs`| Follow logs for observability containers |
+| `make compose-ps-obs`  | View observability stack container status |
 | `make e2e` | Run integration (pytest) and Playwright E2E tests against running stack |
 | `make clean` | Clean up build outputs, caches, and test artifacts |
 
@@ -396,6 +401,14 @@ sports-league-scoreboard/
 ├── .dockerignore               # Excludes virtual environments, caches, and secrets
 ├── Makefile                    # Unified development, testing, and Docker commands
 ├── openapi.yaml                # OpenAPI 3.0 contract specification
+├── observability/              # Self-contained Observability & APM stack (independent Compose project)
+│   ├── docker-compose.yaml     # Compose stack (OTel Collector, Prometheus, Loki, Tempo, Grafana)
+│   ├── otel-collector-config.yaml # OTel Collector pipeline & routing configuration
+│   ├── prometheus.yml          # Prometheus scrape targets configuration
+│   ├── tempo.yaml              # Grafana Tempo distributed trace storage configuration
+│   ├── loki-config.yaml        # Grafana Loki structured log aggregation configuration
+│   ├── grafana/                # Pre-provisioned datasources and scoreboard APM dashboards
+│   └── README.md               # Observability architecture & query guide
 ├── playwright.config.ts        # Playwright E2E configuration (baseURL: http://localhost:8009)
 ├── pytest.ini                  # Root pytest configuration
 ├── README.md                   # Project documentation and quick start guide

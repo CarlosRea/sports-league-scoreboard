@@ -37,7 +37,8 @@ PROD_POSTGRES_VOLUME := scoreboard-prod-pgdata
         run-postgres stop-postgres compose-up compose-down clean \
         compose-up-prod compose-down-prod compose-logs-prod compose-ps-prod \
         compose-up-dev compose-down-dev compose-logs-dev compose-ps-dev \
-        prod-up prod-down dev-up dev-down test-prod promote-to-prod
+        prod-up prod-down dev-up dev-down test-prod promote-to-prod \
+        compose-up-obs compose-down-obs compose-logs-obs compose-ps-obs obs-up obs-down
 
 # Default target: list commands
 help:
@@ -76,6 +77,12 @@ help:
 	@echo "   make compose-ps-prod     Status of production stack containers"
 	@echo "   make test-prod           Run health and API checks against production"
 	@echo "   make promote-to-prod     Promote dev to production with automated tests & deployment"
+	@echo ""
+	@echo " Observability Stack (OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana):"
+	@echo "   make compose-up-obs      Launch observability stack (Grafana :3000, Prometheus :9090, Tempo :3200, Loki :3100, OTel :4318)"
+	@echo "   make compose-down-obs    Tear down observability stack"
+	@echo "   make compose-logs-obs    Follow logs for observability containers"
+	@echo "   make compose-ps-obs      Status of observability stack containers"
 	@echo ""
 	@echo " Standalone Containers:"
 	@echo "   make build-frontend      Compile frontend production assets to dist/"
@@ -256,6 +263,38 @@ promote-to-prod:
 	@echo "3. Running verification tests against production..."
 	@$(MAKE) test-prod
 	@echo "--> Promotion complete! Production is live and verified at http://127.0.0.1:$(PROD_PORT)"
+
+# ==============================================================================
+# Observability Stack Orchestration (OTel Collector, Prometheus, Loki, Tempo, Grafana)
+# ==============================================================================
+OBSERVABILITY_COMPOSE = observability/docker-compose.yaml
+
+compose-up-obs:
+	@echo "--> Launching Observability Stack (OTel Collector, Prometheus, Loki, Tempo, Grafana)..."
+	@docker compose -f $(OBSERVABILITY_COMPOSE) up -d
+	@echo "Grafana Dashboard: http://127.0.0.1:3000 (admin / admin)"
+	@echo "Prometheus:        http://127.0.0.1:9090"
+	@echo "Tempo:             http://127.0.0.1:3200"
+	@echo "Loki:              http://127.0.0.1:3100"
+	@echo "OTel Collector:    http://127.0.0.1:4318 (HTTP) / 4317 (gRPC)"
+
+compose-down-obs:
+	@echo "--> Stopping Observability Stack..."
+	@docker compose -f $(OBSERVABILITY_COMPOSE) down
+
+obs-up: compose-up-obs
+obs-down: compose-down-obs
+
+compose-logs-obs:
+	@docker compose -f $(OBSERVABILITY_COMPOSE) logs -f
+
+compose-ps-obs:
+	@docker compose -f $(OBSERVABILITY_COMPOSE) ps
+
+obs-logs: compose-logs-obs
+obs-ps: compose-ps-obs
+
+
 
 
 
