@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.db.session import engine
 from app.models.common import ErrorResponse
 from app.routers import (
     auth_router,
@@ -18,8 +19,10 @@ from app.routers import (
     standings_router,
     stream_router,
     teams_router,
+    telemetry_router,
 )
 from app.store.sql_store import store
+from app.telemetry import get_telemetry_metadata, setup_telemetry
 
 
 @asynccontextmanager
@@ -80,11 +83,20 @@ app.include_router(scorekeeper_router, prefix=api_prefix)
 app.include_router(standings_router, prefix=api_prefix)
 app.include_router(stream_router, prefix=api_prefix)
 app.include_router(dev_router, prefix=api_prefix)
+app.include_router(telemetry_router, prefix=api_prefix)
 
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {"status": "healthy", "service": settings.PROJECT_NAME}
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "telemetry": get_telemetry_metadata(),
+    }
+
+
+# Initialize OpenTelemetry instrumentation for FastAPI and SQLAlchemy
+setup_telemetry(app=app, engine=engine)
 
 
 # Serve Frontend Static Assets and SPA fallback if available

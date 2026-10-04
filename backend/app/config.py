@@ -10,6 +10,43 @@ class Settings:
     VERSION: str = "1.0.0"
     API_PREFIX: str = "/api"
 
+    # OpenTelemetry & Telemetry Metadata
+    @property
+    def SERVICE_NAME(self) -> str:
+        return (
+            os.getenv("OTEL_SERVICE_NAME")
+            or os.getenv("SERVICE_NAME")
+            or "sports-league-scoreboard"
+        )
+
+    @property
+    def ENVIRONMENT(self) -> str:
+        return (
+            os.getenv("ENVIRONMENT") or os.getenv("ENV") or os.getenv("NODE_ENV") or "development"
+        )
+
+    @property
+    def DEPLOYED_VERSION(self) -> str:
+        return (
+            os.getenv("DEPLOYED_VERSION")
+            or os.getenv("APP_VERSION")
+            or os.getenv("OTEL_SERVICE_VERSION")
+            or os.getenv("VERSION")
+            or self.VERSION
+        )
+
+    @property
+    def OTEL_EXPORTER_OTLP_ENDPOINT(self) -> str | None:
+        return os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv(
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+        )
+
+    @property
+    def OTEL_ENABLED(self) -> bool:
+        disabled = os.getenv("OTEL_SDK_DISABLED", "false").lower() in ("true", "1", "yes")
+        enabled = os.getenv("ENABLE_TELEMETRY", "true").lower() in ("true", "1", "yes")
+        return not disabled and enabled
+
     # JWT & Auth
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours

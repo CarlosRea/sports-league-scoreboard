@@ -339,7 +339,26 @@ flowchart LR
     ProdContainer -->|Healthcheck| Verified["Verify http://localhost:8010/health"]
 ```
 
+---
 
+## 📡 OpenTelemetry Observability
+
+The backend is fully instrumented with **OpenTelemetry** for distributed tracing, metrics, and application performance monitoring:
+
+- **Included Telemetry Attributes**:
+  - **Service Name**: `service.name` / `service_name` (default: `sports-league-scoreboard`, configurable via `OTEL_SERVICE_NAME` or `SERVICE_NAME`)
+  - **Environment**: `deployment.environment` / `environment` (e.g. `development`, `production`, configurable via `ENVIRONMENT`)
+  - **Deployed Version**: `service.version` / `deployed_version` / `deployed.version` (e.g. `20261004-213015-83242da`, configurable via `DEPLOYED_VERSION` or `OTEL_SERVICE_VERSION`)
+- **Automatic Instrumentation**:
+  - **FastAPI HTTP Spans**: Automatically instruments route handlers, request methods, URLs, status codes, and request latencies.
+  - **SQLAlchemy DB Spans**: Automatically instruments database queries, statements, and transaction execution.
+  - **OpenTelemetry Metrics**: `MeterProvider` configured with unified Resource attributes.
+- **Exporting & Integration**:
+  - Supports standard OpenTelemetry collector endpoints via `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g., Jaeger, Grafana Tempo, SigNoz, Datadog).
+  - Built-in `InMemorySpanExporter` for testing and zero-overhead local development without requiring external collectors.
+- **Introspection Endpoints**:
+  - `GET /health`: Returns service health along with active telemetry metadata.
+  - `GET /api/telemetry`: Returns full telemetry configuration, status, and OpenTelemetry Resource attributes.
 
 ---
 

@@ -6,6 +6,7 @@ from .scorekeeper import router as scorekeeper_router
 from .standings import router as standings_router
 from .stream import router as stream_router
 from .teams import router as teams_router
+from .telemetry import router as telemetry_router
 
 __all__ = [
     "auth_router",
@@ -16,4 +17,5 @@ __all__ = [
     "standings_router",
     "stream_router",
     "teams_router",
+    "telemetry_router",
 ]

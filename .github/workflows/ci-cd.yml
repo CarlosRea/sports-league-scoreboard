@@ -268,7 +268,7 @@ jobs:
             
             # Update dev container with exact tagged image
             echo "Updating dev container (scoreboard-app)..."
-            APP_IMAGE="$FULL_IMAGE" docker compose up -d --no-deps app
+            DEPLOYED_VERSION="$IMAGE_TAG" APP_IMAGE="$FULL_IMAGE" docker compose up -d --no-deps app
             
             # Record current running dev tag and image for manual promotion workflow
             echo "$IMAGE_TAG" > .current-dev-tag

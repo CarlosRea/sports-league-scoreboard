@@ -41,7 +41,11 @@ services:
       PORT: 8009
       HOST: 0.0.0.0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev_jwt_secret_sports_scoreboard_2026}
-      ENVIRONMENT: development
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SERVICE_NAME: ${SERVICE_NAME:-sports-league-scoreboard}
+      DEPLOYED_VERSION: ${DEPLOYED_VERSION:-0.1.0}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-sports-league-scoreboard}
+      OTEL_SERVICE_VERSION: ${OTEL_SERVICE_VERSION:-0.1.0}
     ports:
       - "${APP_PORT:-8009}:8009"
 

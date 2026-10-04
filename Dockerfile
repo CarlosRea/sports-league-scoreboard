@@ -33,6 +33,8 @@ ENV PYTHONUNBUFFERED=1 \
     DATABASE_URL=sqlite:///./scoreboard.db \
     PORT=8009 \
     HOST=0.0.0.0 \
+    SERVICE_NAME=sports-league-scoreboard \
+    ENVIRONMENT=production \
     PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app

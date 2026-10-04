@@ -121,7 +121,7 @@ jobs:
             # 5. Deploy to Production Container
             # ------------------------------------------------------------------
             echo "Deploying to production container (scoreboard-prod-app)..."
-            PROD_APP_IMAGE="$EXACT_IMAGE" docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --no-deps app
+            DEPLOYED_VERSION="$TARGET_TAG" PROD_APP_IMAGE="$EXACT_IMAGE" docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d --no-deps app
 
             # Save state records
             echo "$TARGET_TAG" > .current-prod-tag

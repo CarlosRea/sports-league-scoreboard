@@ -494,3 +494,27 @@ export function calculateStandings(
 - **Security Scanner**: Run security scanning tools on all endpoints and files for common vulnerabilities (SQL injection, XSS, insecure headers).
 - **Security Audit**: Audit input validation, secret handling, CSRF protections, and authorization barriers.
 - **Network Listening**: Verify test servers bind only to `127.0.0.1`.
+
+---
+
+## 10. OpenTelemetry Observability
+
+The backend incorporates distributed telemetry and application performance monitoring based on the OpenTelemetry standard:
+
+- **Unified Resource Metadata**:
+  - **Service Name**: `service.name` / `service_name` (default: `sports-league-scoreboard`, configurable via `OTEL_SERVICE_NAME` or `SERVICE_NAME`).
+  - **Environment**: `deployment.environment` / `environment` (e.g. `development`, `production`, configurable via `ENVIRONMENT`).
+  - **Deployed Version**: `service.version` / `deployed_version` / `deployed.version` (e.g. `20261004-213015-83242da`, configurable via `DEPLOYED_VERSION` or `OTEL_SERVICE_VERSION`).
+- **Distributed Tracing & Automatic Instrumentation**:
+  - **FastAPI HTTP Tracing**: Automatic tracing of all HTTP endpoints, routes, methods, response codes, and latencies.
+  - **SQLAlchemy DB Tracing**: Automatic tracing of database query execution and connection pools.
+  - **Span Attribute Enrichment**: Request spans are explicitly tagged with `service.name`, `environment`, and `deployed_version`.
+- **Metrics**:
+  - OpenTelemetry `MeterProvider` configured with matching Resource attributes for operational counters and metric streams.
+- **Exporters & Integrations**:
+  - In-process `InMemorySpanExporter` for testing and zero-overhead local development.
+  - OTLP HTTP exporter support via `OTEL_EXPORTER_OTLP_ENDPOINT` for integration with Jaeger, Grafana Tempo, SigNoz, and OpenTelemetry Collectors.
+- **Inspection Endpoints**:
+  - `GET /health`: Healthcheck payload with `telemetry` summary block.
+  - `GET /api/telemetry`: Dedicated introspection endpoint returning full OpenTelemetry runtime configuration and resource attributes.
+

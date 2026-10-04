@@ -31,6 +31,8 @@ tags:
     description: Real-time event streaming via Server-Sent Events (SSE)
   - name: Dev
     description: Development and demo utility endpoints
+  - name: Telemetry
+    description: OpenTelemetry runtime metadata and system inspection
 
 paths:
   # ============================================================================
@@ -450,6 +452,25 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '403':
           $ref: '#/components/responses/ForbiddenError'
+
+  # ============================================================================
+  # TELEMETRY
+  # ============================================================================
+  /telemetry:
+    get:
+      tags:
+        - Telemetry
+      summary: Get OpenTelemetry metadata
+      description: Returns active OpenTelemetry runtime metadata including service name, deployment environment, deployed version, and resource attributes. Publicly accessible.
+      operationId: getTelemetryMetadata
+      responses:
+        '200':
+          description: Active OpenTelemetry configuration and metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryMetadata'
+
 
 # ==============================================================================
 # COMPONENTS
@@ -946,6 +967,38 @@ components:
           items:
             type: string
           example: ['homeTeamId and awayTeamId must not be equal']
+
+    TelemetryMetadata:
+      type: object
+      required:
+        - service_name
+        - environment
+        - deployed_version
+        - enabled
+        - resource_attributes
+      properties:
+        service_name:
+          type: string
+          example: sports-league-scoreboard
+        environment:
+          type: string
+          example: production
+        deployed_version:
+          type: string
+          example: 20261004-213015-83242da
+        enabled:
+          type: boolean
+          example: true
+        resource_attributes:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            service.name: sports-league-scoreboard
+            deployment.environment: production
+            service.version: 20261004-213015-83242da
+            environment: production
+            deployed_version: 20261004-213015-83242da
 
   responses:
     BadRequestError:
